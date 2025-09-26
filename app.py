@@ -13,7 +13,7 @@ from phish import phish_bp
 from db_init import init_db
 
 load_dotenv()
-app = Flask(__name__, static_folder='dist/static')
+app = Flask(__name__, static_folder='dist')
 app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(16))
 CORS(app, origins=[os.getenv('ALLOWED_ORIGIN', '*')])
 

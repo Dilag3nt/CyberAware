@@ -2,7 +2,8 @@
   "name": "dilag3nt",
   "version": "1.0.0",
   "scripts": {
-    "build": "parcel build templates/index.html --public-url ./"
+    "prebuild": "cp static/style.css dist/ || true",
+    "build": "parcel build static/core.js --public-url ./dist/"
   },
   "devDependencies": {
     "parcel": "^2.7.0"
