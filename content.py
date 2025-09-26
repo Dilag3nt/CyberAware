@@ -1,4 +1,9 @@
 import os
+import time
+import random
+import logging
+import psycopg2
+import psycopg2.extras
 from flask import Blueprint, jsonify
 import requests
 import urllib.request
@@ -6,7 +11,6 @@ import urllib.error
 import feedparser
 import re
 import json
-import logging
 import datetime
 import bleach
 from collections import defaultdict
