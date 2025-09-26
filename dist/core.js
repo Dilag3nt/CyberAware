@@ -1,3 +1,10 @@
+import { debounce, preserveScroll, fetchWithRetry, formatDate, showToast, showDismissibleMessage } from './utils.js';
+import { startEducation, startQuiz, showSlide, showQuestion, selectAnswer, calculateScore, showResults, resetToMain, restartEducation } from './education.js';
+import { loadProfile, toggleEditProfile, updateProfile, updateTeamStatus, updatePublicStatus, loadQuizHistory } from './profile.js';
+import { loadLeaderboard } from './leaderboard.js';
+import { startGoogleLogin, startMicrosoftLogin, fetchUserTeamStatus, clearUserState, logout } from './auth.js';
+import { loadPhishSimulation } from './phish.js';
+
 let currentScope = 'weekly';
 let latestRefreshTimestamp = 0;
 
