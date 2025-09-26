@@ -1,4 +1,4 @@
-import { currentScope } from './state.js';
+import state from './state.js';
 import { preserveScroll, fetchWithRetry, formatDate } from './utils.js';
 
 export async function loadLeaderboard() {
@@ -12,7 +12,7 @@ export async function loadLeaderboard() {
             const userStatusRes = await fetchWithRetry('/api/user_status', 3, 2000);
             const userStatus = await userStatusRes.json();
             const isLoggedIn = !!userStatus.user;
-            const res = await fetchWithRetry(`/api/leaderboard?scope=${currentScope}`, 3, 2000);
+            const res = await fetchWithRetry(`/api/leaderboard?scope=${state.currentScope}`, 3, 2000);
             const data = await res.json();
             if (data.error) {
                 leaderboardContent.innerHTML = `<p>${data.error}</p>`;

@@ -1,4 +1,4 @@
-import * as state from './state.js';
+import state from './state.js';
 import { fetchWithRetry, preserveScroll } from './utils.js';
 
 export function startGoogleLogin() {
