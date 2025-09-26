@@ -1,4 +1,4 @@
-function startGoogleLogin() {
+export function startGoogleLogin() {
     localStorage.setItem('preLoginState', JSON.stringify({
         currentSlide,
         slides,
@@ -14,7 +14,7 @@ function startGoogleLogin() {
     window.location.href = `/login/google?return_to=${section}`;
 }
 
-function startMicrosoftLogin() {
+export function startMicrosoftLogin() {
     localStorage.setItem('preLoginState', JSON.stringify({
         currentSlide,
         slides,
@@ -30,7 +30,7 @@ function startMicrosoftLogin() {
     window.location.href = `/login/microsoft?return_to=${section}`;
 }
 
-async function fetchUserTeamStatus() {
+export async function fetchUserTeamStatus() {
     const toggleTeam = document.getElementById('toggle-team');
     if (!toggleTeam) return;
     try {
@@ -47,7 +47,7 @@ async function fetchUserTeamStatus() {
     }
 }
 
-function clearUserState() {
+export function clearUserState() {
     const keysToClear = [
         'educationState',
         'quizSubmitted',
@@ -65,7 +65,7 @@ function clearUserState() {
     });
 }
 
-function logout() {
+export function logout() {
     clearUserState();
     window.location.href = '/logout';
 }
