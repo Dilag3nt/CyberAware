@@ -1,7 +1,7 @@
 import os
 import secrets
 import logging
-from flask import Flask
+from flask import Flask, session
 from flask_cors import CORS
 from dotenv import load_dotenv
 from content import content_bp
