@@ -1,4 +1,4 @@
-async function loadPhishSimulation() {
+export async function loadPhishSimulation() {
     const phishContent = document.getElementById('phish-content');
     if (!phishContent) return;
     preserveScroll(async () => {

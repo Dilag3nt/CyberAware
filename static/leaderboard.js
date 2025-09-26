@@ -1,4 +1,4 @@
-async function loadLeaderboard() {
+export async function loadLeaderboard() {
     const leaderboardContent = document.getElementById('leaderboard-content');
     const userRankDiv = document.getElementById('user-rank');
     const statsEl = document.getElementById('leaderboard-stats');
