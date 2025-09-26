@@ -2,7 +2,7 @@
   "name": "dilag3nt",
   "version": "1.0.0",
   "scripts": {
-    "build": "parcel build dist/core.js --public-url ./dist/ --no-cache"
+    "build": "parcel build static/core.js --public-url ./static/ --no-cache"
   },
   "devDependencies": {
     "parcel": "^2.7.0"
