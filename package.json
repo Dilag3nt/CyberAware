@@ -1,9 +1,9 @@
 {
   "name": "dilag3nt",
   "version": "1.0.0",
-"scripts": {
-  "build": "parcel build dist/core.js --public-url ./dist/"
-},
+  "scripts": {
+    "build": "parcel build dist/core.js --public-url ./dist/ --no-cache"
+  },
   "devDependencies": {
     "parcel": "^2.7.0"
   }
