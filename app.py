@@ -1,7 +1,7 @@
 import os
 import secrets
 import logging
-from flask import Flask, session, render_template
+from flask import Flask, session, render_template, make_response
 from flask_cors import CORS
 from dotenv import load_dotenv
 from content import content_bp
@@ -12,6 +12,7 @@ from social import social_bp
 from quiz import quiz_bp
 from phish import phish_bp
 from db_init import init_db
+from utils import load_quiz_count
 
 load_dotenv()
 app = Flask(__name__, static_folder='static')
@@ -35,9 +36,6 @@ start_scheduler()
 
 @app.route('/')
 def index():
-    from flask import make_response
-    from utils import load_quiz_count
-    import logging
     logging.basicConfig(
         level=logging.DEBUG,
         format='%(asctime)s %(levelname)s: %(message)s',

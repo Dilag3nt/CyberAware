@@ -55,180 +55,92 @@ def profile(username):
                 response = make_response(render_template('index.html', quiz_count=quiz_count, user=user, profile_error="User not found"))
                 response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
                 return response
-            if not profile['join_public'] and (not user or user.get('username') != username):
-                logging.info(f"Profile access denied: {username} is private (join_public={profile['join_public']})")
-                response = make_response(render_template('index.html', quiz_count=quiz_count, user=user, profile_error="This profile is private"))
-                response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-                return response
-            rank = 'Unranked'
-            if profile['total_score'] and profile['total_score'] > 0:
-                try:
-                    logging.debug("Executing rank query")
-                    cur.execute(
-                        'SELECT COUNT(*) + 1 as rank FROM user_totals ut JOIN users u ON ut.user_id = u.id '
-                        'WHERE u.join_public = TRUE AND (ut.total_score > %s OR '
-                        '(ut.total_score = %s AND ut.perfect_quizzes > %s))',
-                        (profile['total_score'], profile['total_score'], profile['perfect_quizzes'])
-                    )
-                    rank_row = cur.fetchone()
-                    rank = rank_row['rank'] if rank_row else 'Unranked'
-                    logging.debug(f"Rank: {rank}")
-                except Exception as e:
-                    logging.error(f"Error calculating rank: {str(e)}")
-                    rank = 'Unranked'
-            last_quiz = profile['last_quiz']
-            last_quiz_str = "None"
-            if last_quiz:
-                try:
-                    edt_timezone = timezone(timedelta(hours=-4))
-                    last_quiz_edt = last_quiz.astimezone(edt_timezone)
-                    last_quiz_str = last_quiz_edt.strftime('%A, %B %d, %Y at %I:%M:%S %p')
-                    logging.debug(f"Last quiz formatted: {last_quiz_str}")
-                except Exception as e:
-                    logging.error(f"Error formatting last_quiz: {str(e)}")
-                    last_quiz_str = "Unknown"
-            avg_score = profile['avg_score'] or 0
-            if profile['quizzes_taken'] and profile['quizzes_taken'] > 0 and avg_score == 0:
-                avg_score = profile['total_score'] / profile['quizzes_taken']
             profile_data = {
-                "username": profile['username'] or "Unknown",
-                "bio": profile['bio'] or "No bio yet",
-                "domain": profile['domain'] or "None",
-                "join_team": profile['join_team'] or False,
-                "join_public": profile['join_public'] or False,
-                "rank": rank,
+                "username": profile['username'],
+                "bio": profile['bio'],
+                "domain": profile['domain'],
+                "join_team": profile['join_team'],
+                "join_public": profile['join_public'],
                 "total_score": profile['total_score'] or 0,
-                "quizzes_taken": profile['quizzes_taken'] or 0,
-                "avg_score": round(avg_score, 1) if avg_score else 0,
                 "perfect_quizzes": profile['perfect_quizzes'] or 0,
-                "last_quiz": last_quiz_str
+                "last_quiz": profile['last_quiz'].isoformat() + 'Z' if profile['last_quiz'] else None,
+                "quizzes_taken": profile['quizzes_taken'] or 0,
+                "avg_score": round(profile['avg_score'], 1)
             }
-            logging.debug(f"Profile data prepared: {profile_data}")
-            quiz_history = []
-            if user and user.get('username') == username:
-                try:
-                    logging.debug(f"Executing quiz history query for user_id: {profile['id']}")
-                    cur.execute("""
-                        SELECT completed_at, score
-                        FROM scores
-                        WHERE user_id = %s
-                        ORDER BY completed_at DESC
-                        LIMIT 10
-                    """, (profile['id'],))
-                    quiz_history = cur.fetchall()
-                    quiz_history = [{
-                        "quiz_date": row['completed_at'].strftime('%m/%d/%Y %I:%M %p') if row['completed_at'] else 'Unknown',
-                        "taken": row['completed_at'].strftime('%m/%d/%Y %I:%M %p') if row['completed_at'] else 'Unknown',
-                        "score": row['score'] or 0,
-                        "status": 'Pass' if (row['score'] <= 69 and row['score'] >= 48) or (row['score'] > 69 and row['score'] >= 80) else 'Fail',
-                        "is_perfect": row['score'] == 69 or row['score'] == 100
-                    } for row in quiz_history]
-                    logging.debug(f"Quiz history: {quiz_history}")
-                except Exception as e:
-                    logging.error(f"Error fetching quiz history: {str(e)}")
-                    quiz_history = []
-            if not profile_data:
-                logging.error("Profile data is empty")
-                response = make_response(render_template('index.html', quiz_count=quiz_count, user=user, profile_error="Profile data unavailable"))
-                response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-                return response
-            response = make_response(render_template('index.html', quiz_count=quiz_count, user=user, profile_data=profile_data, quiz_history=quiz_history))
+            logging.debug(f"Profile data: {profile_data}")
+            cur.execute("""
+                SELECT RANK() OVER (ORDER BY ut.total_score DESC, ut.perfect_quizzes DESC, ut.last_quiz ASC) as rank
+                FROM user_totals ut
+                JOIN users u ON ut.user_id = u.id
+                WHERE u.join_public = TRUE
+            """)
+            ranks = cur.fetchall()
+            rank_map = {r['rank']: r for r in ranks}
+            profile_data['rank'] = rank_map.get(profile['id'], {}).get('rank', 'Unranked') if ranks else 'Unranked'
+            response = make_response(render_template('index.html', quiz_count=quiz_count, user=user, profile_data=profile_data))
             response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-            logging.debug("Rendering template with profile_data and quiz_history")
             return response
         except Exception as e:
-            logging.error(f"Error in profile endpoint: {str(e)}")
-            response = make_response(render_template('index.html', quiz_count=quiz_count, user=user, profile_error="Error loading profile data"))
+            logging.error(f"Error loading profile for {username}: {e}")
+            response = make_response(render_template('index.html', quiz_count=quiz_count, user=user, profile_error="Error loading profile"))
             response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
             return response
 
-@profile_bp.route('/api/profile/<username>')
-def api_profile(username):
-    user = session.get('user')
-    logging.debug(f"API profile request for username: {username}, session user: {user}")
+@profile_bp.route('/api/profile/<username>', methods=['GET'])
+def get_profile(username):
     with get_db_conn() as conn:
-        try:
-            cur = conn.cursor(cursor_factory=DictCursor)
-            cur.execute("""
-                SELECT users.id, users.username, users.bio, users.domain, users.join_team, users.join_public,
-                       user_totals.total_score, user_totals.perfect_quizzes,
-                       user_totals.last_quiz, user_totals.quizzes_taken,
-                       COALESCE(AVG(scores.score), 0) as avg_score
-                FROM users
-                LEFT JOIN user_totals ON users.id = user_totals.user_id
-                LEFT JOIN scores ON users.id = scores.user_id
-                WHERE users.username = %s
-                GROUP BY users.id, user_totals.total_score, user_totals.perfect_quizzes,
-                         user_totals.last_quiz, user_totals.quizzes_taken, users.domain,
-                         users.join_team, users.join_public
-            """, (username,))
-            profile = cur.fetchone()
-            logging.debug(f"Profile query result: {profile}")
-            if not profile:
-                return jsonify({"error": "User not found"}), 404
-            if not profile['join_public'] and (not user or user.get('username') != username):
-                return jsonify({"error": "This profile is private"}), 403
-            rank = 'Unranked'
-            if profile['total_score'] and profile['total_score'] > 0:
-                try:
-                    logging.debug("Executing rank query")
-                    cur.execute(
-                        'SELECT COUNT(*) + 1 as rank FROM user_totals ut JOIN users u ON ut.user_id = u.id '
-                        'WHERE u.join_public = TRUE AND (ut.total_score > %s OR '
-                        '(ut.total_score = %s AND ut.perfect_quizzes > %s))',
-                        (profile['total_score'], profile['total_score'], profile['perfect_quizzes'])
-                    )
-                    rank_row = cur.fetchone()
-                    rank = rank_row['rank'] if rank_row else 'Unranked'
-                    logging.debug(f"Rank: {rank}")
-                except Exception as e:
-                    logging.error(f"Error calculating rank: {str(e)}")
-                    rank = 'Unranked'
-            last_quiz = profile['last_quiz']
-            last_quiz_str = None
-            if last_quiz:
-                try:
-                    last_quiz_str = last_quiz.isoformat() + 'Z'
-                    logging.debug(f"Last quiz ISO: {last_quiz_str}")
-                except Exception as e:
-                    logging.error(f"Error formatting last_quiz: {str(e)}")
-                    last_quiz_str = None
-            avg_score = profile['avg_score'] or 0
-            if profile['quizzes_taken'] and profile['quizzes_taken'] > 0 and avg_score == 0:
-                avg_score = profile['total_score'] / profile['quizzes_taken']
-            profile_data = {
-                "username": profile['username'] or "Unknown",
-                "bio": profile['bio'] or "No bio yet",
-                "domain": profile['domain'] or "None",
-                "join_team": profile['join_team'] or False,
-                "join_public": profile['join_public'] or False,
-                "rank": rank,
-                "total_score": profile['total_score'] or 0,
-                "quizzes_taken": profile['quizzes_taken'] or 0,
-                "avg_score": round(avg_score, 1) if avg_score else 0,
-                "perfect_quizzes": profile['perfect_quizzes'] or 0,
-                "last_quiz": last_quiz_str
-            }
-            return jsonify({"profile_data": profile_data})
-        except Exception as e:
-            logging.error(f"API profile endpoint error: {str(e)}")
-            return jsonify({"error": "Failed to load profile"}), 500
+        cur = conn.cursor(cursor_factory=DictCursor)
+        cur.execute("""
+            SELECT users.id, users.username, users.bio, users.domain, users.join_team, users.join_public,
+                   user_totals.total_score, user_totals.perfect_quizzes,
+                   user_totals.last_quiz, user_totals.quizzes_taken,
+                   COALESCE(AVG(scores.score), 0) as avg_score
+            FROM users
+            LEFT JOIN user_totals ON users.id = user_totals.user_id
+            LEFT JOIN scores ON users.id = scores.user_id
+            WHERE users.username = %s
+            GROUP BY users.id, user_totals.total_score, user_totals.perfect_quizzes,
+                     user_totals.last_quiz, user_totals.quizzes_taken
+        """, (username,))
+        profile = cur.fetchone()
+        if not profile:
+            return jsonify({"error": "User not found"}), 404
+        profile_data = {
+            "username": profile['username'],
+            "bio": profile['bio'],
+            "domain": profile['domain'],
+            "join_team": profile['join_team'],
+            "join_public": profile['join_public'],
+            "total_score": profile['total_score'] or 0,
+            "perfect_quizzes": profile['perfect_quizzes'] or 0,
+            "last_quiz": profile['last_quiz'].isoformat() + 'Z' if profile['last_quiz'] else None,
+            "quizzes_taken": profile['quizzes_taken'] or 0,
+            "avg_score": round(profile['avg_score'], 1)
+        }
+        cur.execute("""
+            SELECT COUNT(*) + 1 as rank FROM user_totals ut JOIN users u ON ut.user_id = u.id
+            WHERE u.join_public = TRUE AND (ut.total_score > %s OR
+            (ut.total_score = %s AND ut.perfect_quizzes > %s) OR
+            (ut.total_score = %s AND ut.perfect_quizzes = %s AND ut.last_quiz > %s))
+        """, (profile['total_score'], profile['total_score'], profile['perfect_quizzes'],
+              profile['total_score'], profile['perfect_quizzes'], profile['last_quiz']))
+        rank_row = cur.fetchone()
+        profile_data['rank'] = rank_row['rank'] if rank_row['rank'] != 1 or profile['total_score'] > 0 else 'Unranked'
+        return jsonify({"profile_data": profile_data})
 
 @profile_bp.route('/api/check_username', methods=['POST'])
 def check_username():
-    user = session.get('user')
-    if not user:
-        return jsonify({"error": "Not logged in"}), 401
     data = request.json
-    username = bleach.clean(data.get('username', '').strip()[:30], tags=[], strip=True)
-    if len(username) < 5 or len(username) > 30 or not re.match(r'^[a-zA-Z0-9_]+$', username):
-        return jsonify({"error": "Username must be 5-30 chars, alphanumeric or underscore"}), 400
+    username = data.get('username')
+    if not username:
+        return jsonify({"error": "Username required"}), 400
     with get_db_conn() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT id FROM users WHERE username = %s AND id != %s", (username, user['id']))
-        if cur.fetchone():
-            return jsonify({"error": "Username already taken"}), 400
-        return jsonify({"success": True})
+        cur.execute("SELECT COUNT(*) FROM users WHERE username = %s", (username,))
+        exists = cur.fetchone()[0] > 0
+        if exists:
+            return jsonify({"error": "Username taken"}), 409
+        return jsonify({"available": True})
 
 @profile_bp.route('/api/update_profile', methods=['POST'])
 def update_profile():
@@ -236,29 +148,27 @@ def update_profile():
     if not user:
         return jsonify({"error": "Not logged in"}), 401
     data = request.json
-    username = bleach.clean(data.get('username', '').strip()[:30], tags=[], strip=True)
-    bio = bleach.clean(data.get('bio', '').strip()[:100], tags=[], strip=True)
+    username = data.get('username')
+    bio = bleach.clean(data.get('bio', ''), tags=[], strip=True)
     join_team = data.get('join_team', False)
-    join_public = data.get('join_public', False)
-    if len(username) < 5 or len(username) > 30 or not re.match(r'^[a-zA-Z0-9_]+$', username):
-        return jsonify({"error": "Username must be 5-30 chars, alphanumeric or underscore"}), 400
+    join_public = data.get('join_public', True)
+    if not re.match(r'^[a-zA-Z0-9_]{5,30}$', username):
+        return jsonify({"error": "Invalid username"}), 400
     if len(bio) > 100:
-        return jsonify({"error": "Bio must be 100 chars or less"}), 400
+        return jsonify({"error": "Bio too long"}), 400
     with get_db_conn() as conn:
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=DictCursor)
         try:
             cur.execute(
-                'UPDATE users SET username = %s, bio = %s, join_team = %s, join_public = %s WHERE id = %s',
+                'UPDATE users SET username = %s, bio = %s, join_team = %s, join_public = %s WHERE id = %s RETURNING username',
                 (username, bio, join_team, join_public, user['id'])
             )
-            conn.commit()
+            updated = cur.fetchone()
             if cur.rowcount == 0:
                 return jsonify({"error": "User not found"}), 404
-            session['user']['username'] = username
-            session['user']['bio'] = bio
-            session['user']['join_team'] = join_team
-            session['user']['join_public'] = join_public
-            return jsonify({"success": True, "username": username, "bio": bio, "join_team": join_team, "join_public": join_public})
+            conn.commit()
+            session['user']['username'] = updated['username']
+            return jsonify({"success": True, "username": updated['username']})
         except psycopg2.errors.UniqueViolation:
             conn.rollback()
             return jsonify({"error": "Username already taken"}), 400

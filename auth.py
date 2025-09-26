@@ -6,6 +6,7 @@ import logging
 import jwt
 import requests
 from utils import get_db_conn, generate_username, load_quiz_count
+from psycopg2.extras import DictCursor
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -26,19 +27,6 @@ microsoft = oauth.register(
     authorize_params={'prompt': 'select_account'},
     jwks_uri='https://login.microsoftonline.com/common/discovery/v2.0/keys'
 )
-
-@auth_bp.after_request
-def apply_csp(response):
-    response.headers['Content-Security-Policy'] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
-        "script-src-attr 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
-        "font-src 'self' https://cdnjs.cloudflare.com; "
-        "connect-src 'self' https://api.x.ai https://feeds.feedburner.com https://krebsonsecurity.com https://www.darkreading.com https://isc.sans.edu https://www.bleepingcomputer.com https://accounts.google.com https://login.microsoftonline.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;"
-    )
-    logging.debug(f"Applied CSP: {response.headers['Content-Security-Policy']}")
-    return response
 
 @auth_bp.route('/login')
 def login_page():
@@ -62,74 +50,25 @@ def login(provider):
         return microsoft.authorize_redirect(url_for('auth.auth_callback', provider='microsoft', _external=True), nonce=nonce)
     return redirect(url_for('index'))
 
-@auth_bp.route('/auth/<provider>/callback')
+@auth_bp.route('/auth/<provider>')
 def auth_callback(provider):
     try:
         if provider == 'google':
             token = google.authorize_access_token()
             nonce = session.pop('google_nonce', None)
-            if not nonce:
-                logging.error("No nonce found in session for Google OAuth")
-                return redirect(url_for('index'))
             user_info = google.parse_id_token(token, nonce=nonce)
             social_id = user_info['sub']
+            name = user_info.get('name', '')
             email = user_info.get('email', '')
+            logging.debug(f"Google user info: {user_info}")
         elif provider == 'microsoft':
-            code = request.args.get('code')
-            if not code:
-                logging.error("No code provided in Microsoft OAuth callback")
-                return redirect(url_for('index'))
+            token = microsoft.authorize_access_token()
             nonce = session.pop('microsoft_nonce', None)
-            if not nonce:
-                logging.error("No nonce found in session for Microsoft OAuth")
-                return redirect(url_for('index'))
-            try:
-                from authlib.integrations.requests_client import OAuth2Session
-                temp_client = OAuth2Session(
-                    os.getenv('MICROSOFT_CLIENT_ID'),
-                    os.getenv('MICROSOFT_CLIENT_SECRET')
-                )
-                token_endpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
-                redirect_uri = url_for('auth.auth_callback', provider='microsoft', _external=True)
-                token = temp_client.fetch_token(
-                    token_endpoint,
-                    grant_type='authorization_code',
-                    code=code,
-                    redirect_uri=redirect_uri
-                )
-            except Exception as e:
-                logging.error(f"Microsoft token fetch failed: {e}")
-                return redirect(url_for('index'))
-            try:
-                id_token = token.get('id_token')
-                if not id_token:
-                    logging.error("No ID token provided in Microsoft OAuth response")
-                    return redirect(url_for('index'))
-                jwks = requests.get('https://login.microsoftonline.com/common/discovery/v2.0/keys').json()
-                decoded_header = jwt.get_unverified_header(id_token)
-                kid = decoded_header.get('kid')
-                key = next((k for k in jwks['keys'] if k['kid'] == kid), None)
-                if not key:
-                    logging.error(f"No matching JWK found for kid: {kid}")
-                    return redirect(url_for('index'))
-                from jwt.algorithms import RSAAlgorithm
-                public_key = RSAAlgorithm.from_jwk(key)
-                user_info = jwt.decode(
-                    id_token,
-                    public_key,
-                    algorithms=['RS256'],
-                    audience=os.getenv('MICROSOFT_CLIENT_ID'),
-                    options={'verify_nbf': False, 'verify_iss': False}
-                )
-                if user_info.get('nonce') != nonce:
-                    logging.error(f"Nonce mismatch: expected {nonce}, got {user_info.get('nonce')}")
-                    return redirect(url_for('index'))
-                logging.info(f"Microsoft ID token claims: {user_info}")
-            except Exception as e:
-                logging.error(f"Microsoft ID token validation failed: {e}")
-                return redirect(url_for('index'))
-            social_id = user_info['sub']
+            user_info = microsoft.parse_id_token(token, nonce=nonce)
+            social_id = user_info['oid']
+            name = user_info.get('name', '')
             email = user_info.get('email') or user_info.get('upn') or user_info.get('preferred_username', '')
+            logging.debug(f"Microsoft user info: {user_info}")
         else:
             return redirect(url_for('index'))
         domain = None
@@ -141,7 +80,7 @@ def auth_callback(provider):
                 pass
         username = generate_username()
         with get_db_conn() as conn:
-            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cur = conn.cursor(cursor_factory=DictCursor)
             cur.execute('SELECT id, username, domain FROM users WHERE social_id = %s AND provider = %s', (social_id, provider))
             user = cur.fetchone()
             if not user:

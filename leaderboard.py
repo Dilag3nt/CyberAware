@@ -50,19 +50,9 @@ def leaderboard():
                 "team_avg": round(ts['team_avg'] or 0, 1),
                 "team_perfects": ts['team_perfects'] or 0,
                 "members": ts['members'] or 0
-            } if ts else None
-            if user:
-                cur.execute('SELECT total_score, perfect_quizzes FROM user_totals WHERE user_id = %s', (user['id'],))
-                totals = cur.fetchone()
-                if totals and totals['total_score'] > 0:
-                    cur.execute(
-                        'SELECT COUNT(*) + 1 as rank FROM user_totals ut JOIN users u ON ut.user_id = u.id '
-                        'WHERE u.domain = %s AND u.join_team = TRUE AND (ut.total_score > %s OR (ut.total_score = %s AND ut.perfect_quizzes > %s))',
-                        (domain, totals['total_score'], totals['total_score'], totals['perfect_quizzes'])
-                    )
-                    user_rank = {"rank": cur.fetchone()['rank'], "username": user['username'], "total_score": totals['total_score']}
+            }
         elif scope == 'weekly':
-            week_start = (datetime.now(timezone.utc) - timedelta(days=datetime.now(timezone.utc).weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+            week_start = datetime.now(timezone.utc) - timedelta(days=7)
             cur.execute("""
                 SELECT users.username, COUNT(DISTINCT scores.quiz_id) as quizzes_taken,
                        COUNT(CASE WHEN scores.score = 69 OR scores.score = 100 THEN 1 END) as perfect_quizzes,

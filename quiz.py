@@ -51,8 +51,7 @@ def submit_quiz(quiz_id):
             (user['id'], totals['total_score'], totals['perfect_quizzes'], datetime.now(timezone.utc), totals['quizzes_taken'])
         )
         conn.commit()
-        logging.info(f"Quiz {quiz_id} score {score} saved for user {user['username']}")
-        return jsonify({"success": True, "saved": True, "message": "Score saved! Check the leaderboard."}), 200
+        return jsonify({"success": True, "saved": True, "message": "Score saved! Check the leaderboard."})
 
 @quiz_bp.route('/api/update_quiz_count', methods=['GET', 'POST'])
 def update_quiz_count():

@@ -1,11 +1,11 @@
 import os
 import logging
 import psycopg2
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def get_db_conn():
-    import os
-    from dotenv import load_dotenv
-    load_dotenv()
     try:
         return psycopg2.connect(os.getenv('DATABASE_URL'), sslmode='require')
     except psycopg2.Error as e:
