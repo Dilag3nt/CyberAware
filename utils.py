@@ -1,7 +1,6 @@
 import os
 import logging
 import psycopg2
-from utils import get_db_conn
 
 def get_db_conn():
     import os
