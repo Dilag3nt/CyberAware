@@ -1,0 +1,10 @@
+{
+  "name": "dilag3nt",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "parcel build templates/index.html --public-url ./"
+  },
+  "devDependencies": {
+    "parcel": "^2.7.0"
+  }
+}

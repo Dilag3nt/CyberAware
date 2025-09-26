@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Dilag3nt Cyber Awareness</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12"></script>
+</head>
+<body>
+    <div id="nav">
+        <a href="/" data-section="home" id="nav-home">Home</a>
+        <a href="/leaderboard" data-section="leaderboard" id="nav-leaderboard">Leaderboard</a>
+        {% if user %}
+            <a href="/profile" data-section="profile" id="nav-profile">Profile</a>
+            <span id="user-info">Welcome, {{ user.username }} | <a href="{{ url_for('auth.logout') }}">Sign out</a></span>
+        {% else %}
+            <a href="#" id="login-google" class="nav-signin"><i class="fab fa-google"></i></a>
+            <a href="#" id="login-microsoft" class="nav-signin"><i class="fab fa-microsoft"></i></a>
+        {% endif %}
+        <a href="/phish" data-section="phish" id="nav-phish">Phish</a>
+        <span id="mode-toggle"><i class="fas fa-moon"></i></span>
+    </div>
+    <div id="terminal">
+        <div id="header">
+            <span id="header-logo">
+                <a href="/" data-section="home"><img src="/static/images/Dilag3nt_logo.png" alt="Logo"></a>
+            </span>
+            <div id="header-title-container">
+                <span id="header-title"></span>
+                <div id="content-refresh" class="headlines-refresh">Updated: Unknown</div>
+            </div>
+        </div>
+        <div id="education-section" class="section">
+            <div id="education-content"></div>
+            <button id="start-education">Start Education</button>
+        </div>
+        <div id="profile-section" class="section" style="display: none;">
+            <div class="section-title"><i class="fa-solid fa-address-card"></i> Profile</div>
+            <div id="profile-content">
+                {% if profile_error %}
+                    <p>{{ profile_error }}</p>
+                {% elif error %}
+                    <p>{{ error }}</p>
+                {% elif profile_data is defined %}
+                    <p><strong>Username:</strong> <span id="profile-username">{{ profile_data.username | default('Unknown') }}</span></p>
+                    <p><strong>Bio:</strong> <span id="profile-bio">{{ profile_data.bio | default('No bio yet') }}</span></p>
+                    <p><strong>Domain:</strong> <span id="profile-domain">{{ profile_data.domain | default('None') }}</span></p>
+                    <p><strong>Team Joined:</strong> <span id="profile-join-team">{{ 'Yes' if profile_data.join_team else 'No' }}</span></p>
+                    <p><strong>Public Leaderboard Joined:</strong> <span id="profile-join-public">{{ 'Yes' if profile_data.join_public else 'No' }}</span></p>
+                    <p><strong>Rank:</strong> <span id="profile-rank">{{ profile_data.rank | default('Unranked') }}</span></p>
+                    <p><strong>Total Score:</strong> <span id="profile-total-score">{{ profile_data.total_score | default(0) }}</span></p>
+                    <p><strong>Quizzes Taken:</strong> <span id="profile-quizzes-taken">{{ profile_data.quizzes_taken | default(0) }}</span></p>
+                    <p><strong>Average Score:</strong> <span id="profile-avg-score">{{ profile_data.avg_score | default(0) }}</span></p>
+                    <p><strong>Perfect Quizzes:</strong> <span id="profile-perfect-quizzes">{{ profile_data.perfect_quizzes | default(0) }}</span></p>
+                    <p><strong>Last Quiz:</strong> <span id="profile-last-quiz">{{ profile_data.last_quiz | default('None') }}</span></p>
+                {% endif %}
+            </div>
+            <div id="quiz-history-content"></div>
+        </div>
+        <div id="leaderboard-section" class="section" style="display: none;">
+            <div class="section-title"><i class="fa-solid fa-trophy"></i> Leaderboard</div>
+            <div id="leaderboard-toggle">
+                <button id="toggle-weekly" class="nav-button active">Weekly</button>
+                <button id="toggle-alltime" class="nav-button">All-Time</button>
+                <button id="toggle-team" class="nav-button" style="display: none;">Team</button>
+            </div>
+            <div id="leaderboard-stats"></div>
+            <div id="leaderboard-content"></div>
+            <div id="user-rank"></div>
+        </div>
+        <div id="phish-section" class="section" style="display: none;">
+            <div class="section-title"><i class="fa-solid fa-fish"></i> Phishing Simulation</div>
+            <div id="phish-content"></div>
+        </div>
+        <div class="footer">
+            <span>© Dilag3nt <span id="current-year"></span></span>
+            <span>Quizzes <span id="quiz-count">{{ quiz_count }}</span></span>
+            <span id="content-refresh"></span>
+        </div>
+    </div>
+    <script type="module" src="/static/core.js"></script>
+</body>
+</html>
