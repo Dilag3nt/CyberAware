@@ -25,13 +25,26 @@ export const fetchWithRetry = async (url, maxRetries = 3, delay = 2000, options 
     }
 };
 
-export const formatDate = (dateStr) => {
-    if (!dateStr) return 'Not Available';
-    const normalizedDateStr = dateStr.replace(/\+00:00Z?$/, 'Z');
-    const dateObj = new Date(normalizedDateStr);
-    if (isNaN(dateObj.getTime())) return 'Unknown';
-    return dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-};
+export function formatDate(dateStr) {
+    if (!dateStr || dateStr === 'Never' || dateStr === 'Unknown') return dateStr || 'Unknown';
+    try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) {
+            console.error('Invalid date:', dateStr);
+            return 'Unknown';
+        }
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const year = date.getFullYear();
+        const hours = String(date.getHours() % 12 || 12).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const ampm = date.getHours() >= 12 ? 'PM' : 'AM';
+        return `${month}/${day}/${year}, ${hours}:${minutes} ${ampm}`;
+    } catch (e) {
+        console.error('Error formatting date:', e, 'Input:', dateStr);
+        return 'Unknown';
+    }
+}
 
 export const showToast = (message, type = 'info', duration = 3000) => {
     const toast = document.createElement('div');

@@ -6,6 +6,8 @@ import { loadLeaderboard } from './leaderboard.js';
 import { startGoogleLogin, startMicrosoftLogin, fetchUserTeamStatus, clearUserState } from './auth.js';
 import { loadPhishSimulation } from './phish.js';
 
+export { showSection };
+
 function typeTitle(element, text) {
     if (!element) return;
     new Typed(`#${element.id}`, {

@@ -3,9 +3,10 @@ import secrets
 import logging
 from flask import Flask, session, render_template, make_response
 from flask_cors import CORS
+from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
 from content import content_bp
-from auth import auth_bp
+from auth import auth_bp, init_oauth
 from profile import profile_bp
 from leaderboard import leaderboard_bp
 from social import social_bp
@@ -19,6 +20,9 @@ app = Flask(__name__, static_folder='static')
 app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(16))
 CORS(app, origins=[os.getenv('ALLOWED_ORIGIN', '*')])
 
+# Initialize OAuth
+oauth = OAuth(app)
+
 # Register Blueprints
 app.register_blueprint(content_bp)
 app.register_blueprint(auth_bp)
@@ -27,6 +31,9 @@ app.register_blueprint(leaderboard_bp)
 app.register_blueprint(social_bp)
 app.register_blueprint(quiz_bp)
 app.register_blueprint(phish_bp)
+
+# Initialize OAuth clients in auth.py
+init_oauth(oauth)
 
 # Initialize database and scheduler
 init_db()

@@ -1,6 +1,5 @@
 import os
 from flask import Blueprint, redirect, url_for, session, request, make_response, render_template, jsonify
-from authlib.integrations.flask_client import OAuth
 import secrets
 import logging
 import jwt
@@ -10,23 +9,24 @@ from psycopg2.extras import DictCursor
 
 auth_bp = Blueprint('auth', __name__)
 
-oauth = OAuth()
-google = oauth.register(
-    name='google',
-    client_id=os.getenv('GOOGLE_CLIENT_ID'),
-    client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
-    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-    client_kwargs={'scope': 'openid email profile'}
-)
-microsoft = oauth.register(
-    name='microsoft',
-    client_id=os.getenv('MICROSOFT_CLIENT_ID'),
-    client_secret=os.getenv('MICROSOFT_CLIENT_SECRET'),
-    server_metadata_url='https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration',
-    client_kwargs={'scope': 'openid email profile'},
-    authorize_params={'prompt': 'select_account'},
-    jwks_uri='https://login.microsoftonline.com/common/discovery/v2.0/keys'
-)
+def init_oauth(oauth):
+    global google, microsoft
+    google = oauth.register(
+        name='google',
+        client_id=os.getenv('GOOGLE_CLIENT_ID'),
+        client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
+        server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+        client_kwargs={'scope': 'openid email profile'}
+    )
+    microsoft = oauth.register(
+        name='microsoft',
+        client_id=os.getenv('MICROSOFT_CLIENT_ID'),
+        client_secret=os.getenv('MICROSOFT_CLIENT_SECRET'),
+        server_metadata_url='https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration',
+        client_kwargs={'scope': 'openid email profile'},
+        authorize_params={'prompt': 'select_account'},
+        jwks_uri='https://login.microsoftonline.com/common/discovery/v2.0/keys'
+    )
 
 @auth_bp.route('/login')
 def login_page():

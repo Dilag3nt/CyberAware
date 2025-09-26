@@ -1,5 +1,6 @@
 import state from './state.js';
 import { preserveScroll, fetchWithRetry, formatDate } from './utils.js';
+import { showSection } from './core.js';
 
 export async function loadLeaderboard() {
     const leaderboardContent = document.getElementById('leaderboard-content');
@@ -26,7 +27,7 @@ export async function loadLeaderboard() {
                 html += '<tr><th>Rank</th><th>Username</th><th class="desktop-only">Quizzes</th><th class="desktop-only">Perfect</th><th class="desktop-only">Avg</th><th>Total</th><th>Last Quiz</th></tr>';
                 data.leaders.forEach((leader, i) => {
                     const rankSymbol = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${leader.rank}`;
-                    const usernameCell = `<a href="#" onclick="showSection('profile', '${encodeURIComponent(leader.username)}'); return false;">${leader.username}</a>`;
+                    const usernameCell = `<a href="/profile/${encodeURIComponent(leader.username)}" onclick="event.preventDefault(); showSection('profile', '${encodeURIComponent(leader.username)}');">${leader.username}</a>`;
                     let lastQuizDisplay = leader.last_quiz || 'Never';
                     let isInactive = !leader.last_quiz;
                     console.debug('Raw leader row:', { username: leader.username, last_quiz: leader.last_quiz });
