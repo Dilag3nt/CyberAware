@@ -1,89 +1,48 @@
-function debounce(func, wait) {
+const debounce = (func, wait) => {
     let timeout;
     return function (...args) {
         clearTimeout(timeout);
         timeout = setTimeout(() => func.apply(this, args), wait);
     };
-}
+};
 
-function preserveScroll(callback) {
-    const scrollY = window.scrollY || window.pageYOffset;
-    requestAnimationFrame(() => {
-        callback();
-        window.scrollTo({ top: scrollY, behavior: 'auto' });
-        console.log('Restored scroll to:', scrollY);
-    });
-}
+const preserveScroll = (callback) => {
+    const scrollY = window.scrollY;
+    callback();
+    window.scrollTo(0, scrollY);
+};
 
-async function fetchWithRetry(url, maxRetries = 3, delay = 2000, options = {}) {
-    for (let i = 0; i < maxRetries; i++) {
+const fetchWithRetry = async (url, options = {}, maxRetries = 3) => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            const response = await fetch(url, { ...options, cache: 'no-store' });
-            if (response.status === 429) {
-                const retryAfter = response.headers.get('Retry-After') || delay;
-                await new Promise(resolve => setTimeout(resolve, retryAfter * (i + 1)));
-                continue;
-            }
+            const response = await fetch(url, options);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             return response;
-        } catch (e) {
-            if (i === maxRetries - 1) throw e;
-            await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+        } catch (error) {
+            if (attempt === maxRetries) throw error;
+            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
         }
     }
-    throw new Error('Max retries exceeded');
-}
+};
 
-function formatDate(dateStr) {
-    if (!dateStr) return 'Not Available';
-    const normalizedDateStr = dateStr.replace(/\+00:00Z?$/, 'Z');
-    const dateObj = new Date(normalizedDateStr);
-    if (isNaN(dateObj.getTime())) return 'Unknown';
-    const userTZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    const options = {
-        month: '2-digit',
-        day: '2-digit',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-        timeZone: userTZ
-    };
-    return dateObj.toLocaleString('en-US', options);
-}
+const formatDate = (date) => {
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+};
 
-function showToast(message, type = 'info') {
-    const existingToast = document.querySelector('.toast');
-    if (existingToast) {
-        existingToast.remove();
-    }
+const showToast = (message, duration = 3000) => {
     const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
+    toast.className = 'toast';
     toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(() => {
-        toast.classList.add('show');
-    }, 100);
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => {
-            toast.remove();
-        }, 300);
-    }, 3000);
-}
+    setTimeout(() => toast.remove(), duration);
+};
 
-function showDismissibleMessage(container, text) {
-    if (localStorage.getItem('phishWelcomeDismissed') === 'true') return;
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'welcome-message';
-    messageDiv.innerHTML = `${text}<span class="dismiss-welcome" id="dismiss-phish-welcome"><i class="fa-solid fa-square-xmark"></i></span>`;
-    container.prepend(messageDiv);
-    const dismissButton = document.getElementById('dismiss-phish-welcome');
-    if (dismissButton) {
-        dismissButton.addEventListener('click', () => {
-            preserveScroll(() => {
-                localStorage.setItem('phishWelcomeDismissed', 'true');
-                messageDiv.remove();
-            });
-        });
-    }
-}
+const showDismissibleMessage = (message) => {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'dismissible-message';
+    msgDiv.innerHTML = `${message} <button class="close-btn">×</button>`;
+    document.body.appendChild(msgDiv);
+    msgDiv.querySelector('.close-btn').addEventListener('click', () => msgDiv.remove());
+};
+
+export { debounce, preserveScroll, fetchWithRetry, formatDate, showToast, showDismissibleMessage };
