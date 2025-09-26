@@ -1,5 +1,5 @@
-from flask import Blueprint, jsonify, request, session
 import logging
+from flask import Blueprint, jsonify, request, session
 from datetime import datetime, timezone, timedelta
 from psycopg2.extras import DictCursor
 from utils import get_db_conn

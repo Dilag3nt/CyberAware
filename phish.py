@@ -1,7 +1,7 @@
+import logging
 from flask import Blueprint, jsonify
 import requests
 import os
-import logging
 
 phish_bp = Blueprint('phish', __name__)
 

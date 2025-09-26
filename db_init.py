@@ -1,5 +1,5 @@
-import psycopg2
 import logging
+import psycopg2
 from utils import get_db_conn
 
 def init_db():

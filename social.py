@@ -1,6 +1,6 @@
 import os
-from flask import Blueprint, jsonify, request
 import logging
+from flask import Blueprint, jsonify, request
 import tweepy
 import bleach
 import html
