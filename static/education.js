@@ -1,12 +1,7 @@
-// Global variables (assumed to be accessible via closure or window scope in original)
-let slides = [];
-let questions = [];
-let currentSlide = 0;
-let currentQuestion = 0;
-let answers = [];
-let latestRefreshTimestamp = 0;
+import * as state from './state.js';
+import { preserveScroll, fetchWithRetry, formatDate, showToast } from './utils.js';
 
-const startEducation = async () => {
+export const startEducation = async () => {
     const startEducationBtn = document.getElementById('start-education');
     const educationContent = document.getElementById('education-content');
     if (!educationContent) return;
@@ -32,29 +27,29 @@ const startEducation = async () => {
         fetchWithRetry('/api/slides', 3, 2000).then(res => res.json()).then(data => {
             const slidesTimestamp = data.length > 0 ? Math.max(...data.map(s => new Date(s.headline?.timestamp).getTime() || 0)) : 0;
             console.log('Slides timestamp in startEducation:', slidesTimestamp);
-            latestRefreshTimestamp = slidesTimestamp;
+            state.latestRefreshTimestamp = slidesTimestamp;
             educationContent.innerHTML = '';
             if (data.length === 0) {
                 educationContent.innerHTML = '<p>No slides available. Retrying in 5 seconds...</p>';
                 console.log('No slides available, retrying in 5 seconds');
                 setTimeout(() => startEducation(), 5000);
             } else {
-                slides = data.slice(0, 5);
-                currentSlide = 0;
-                questions = [];
-                currentQuestion = 0;
-                answers = [];
+                state.slides = data.slice(0, 5);
+                state.currentSlide = 0;
+                state.questions = [];
+                state.currentQuestion = 0;
+                state.answers = [];
                 showSlide(0);
                 localStorage.setItem('educationState', JSON.stringify({
-                    currentSlide,
-                    slides,
-                    currentQuestion,
-                    questions,
-                    answers,
-                    refreshTimestamp: slidesTimestamp
+                    currentSlide: state.currentSlide,
+                    slides: state.slides,
+                    currentQuestion: state.currentQuestion,
+                    questions: state.questions,
+                    answers: state.answers,
+                    refreshTimestamp: state.latestRefreshTimestamp
                 }));
                 console.log('Saved educationState in startEducation:', localStorage.getItem('educationState'));
-                console.log('Slides loaded:', slides);
+                console.log('Slides loaded:', state.slides);
             }
         }).catch(e => {
             educationContent.innerHTML = '<p>Error loading slides: ' + e.message + '. Retrying in 5 seconds...</p>';
@@ -64,11 +59,11 @@ const startEducation = async () => {
     });
 };
 
-const startQuiz = async () => {
+export const startQuiz = async () => {
     const educationContent = document.getElementById('education-content');
     if (!educationContent) return;
     preserveScroll(() => {
-        const quizId = questions[0]?.id || (fetchWithRetry('/api/quiz').then(res => res.json()).then(data => data[0]?.id));
+        const quizId = state.questions[0]?.id || (fetchWithRetry('/api/quiz').then(res => res.json()).then(data => data[0]?.id));
         educationContent.innerHTML = '<p>Loading quiz... <span id="quiz-progress">0%</span></p>';
         let startTime = performance.now();
         let animationId;
@@ -91,19 +86,19 @@ const startQuiz = async () => {
                 throw new Error('Empty quiz response');
             }
             educationContent.innerHTML = '';
-            questions = data;
-            currentQuestion = 0;
-            answers = new Array(questions.length).fill(null);
+            state.questions = data;
+            state.currentQuestion = 0;
+            state.answers = new Array(state.questions.length).fill(null);
             localStorage.removeItem('quizSubmitted');
             localStorage.removeItem('quizCountUpdated');
             showQuestion(0);
             localStorage.setItem('educationState', JSON.stringify({
-                currentSlide,
-                slides,
-                currentQuestion,
-                questions,
-                answers,
-                refreshTimestamp: latestRefreshTimestamp,
+                currentSlide: state.currentSlide,
+                slides: state.slides,
+                currentQuestion: state.currentQuestion,
+                questions: state.questions,
+                answers: state.answers,
+                refreshTimestamp: state.latestRefreshTimestamp,
                 quizId
             }));
             console.log('Saved educationState in startQuiz:', localStorage.getItem('educationState'));
@@ -115,15 +110,15 @@ const startQuiz = async () => {
     });
 };
 
-const showSlide = (index) => {
-    if (index < 0 || index >= slides.length) {
-        console.log('Invalid slide index:', index, 'slides length:', slides.length);
+export const showSlide = (index) => {
+    if (index < 0 || index >= state.slides.length) {
+        console.log('Invalid slide index:', index, 'slides length:', state.slides.length);
         return;
     }
     const educationContent = document.getElementById('education-content');
     if (!educationContent) return;
     preserveScroll(() => {
-        const slide = slides[index];
+        const slide = state.slides[index];
         let html = '<div class="slide">';
         html += `<div class="slide-title">${slide.title}</div>`;
         if (index === 0 && localStorage.getItem('welcomeDismissed') !== 'true') {
@@ -138,120 +133,56 @@ const showSlide = (index) => {
         if (slide.headline) {
             html += `<hr class="slide-reference"><div class="slide-reference">${slide.headline.description} <a href="${slide.headline.link}" target="_blank">read more</a><br><small>${slide.headline.source} - ${formatDate(slide.headline.published_date)}</small></div>`;
         }
-        const progress = Array(slides.length).fill('-').map((_, i) => i === index ? '>' : '-').join('');
+        const progress = Array(state.slides.length).fill('-').map((_, i) => i === index ? '>' : '-').join('');
         html += `<p class="progress">[${progress}]</p>`;
         html += '<div class="nav-buttons">';
         if (index > 0) {
             html += `<button id="prev-slide-${index}" class="nav-button nav-button-left" title="Previous"><i class="fa-solid fa-square-caret-left"></i></button>`;
         }
-        if (index < slides.length - 1) {
+        if (index < state.slides.length - 1) {
             html += `<button id="next-slide-${index}" class="nav-button nav-button-right" title="Next"><i class="fa-solid fa-square-caret-right"></i></button>`;
         } else {
-            html += `<button id="next-slide-${index}" class="nav-button nav-button-right" title="Start Quiz"><i class="fa-solid fa-square-caret-right"></i></button>`;
+            html += `<button id="start-quiz-btn" class="nav-button nav-button-right" title="Start Quiz"><i class="fa-solid fa-question"></i> Start Quiz</button>`;
         }
         html += '</div>';
         educationContent.innerHTML = html;
-        if (index === 0 && localStorage.getItem('welcomeDismissed') !== 'true') {
-            const dismissButton = document.getElementById('dismiss-welcome');
-            if (dismissButton) {
-                dismissButton.addEventListener('click', () => {
-                    preserveScroll(() => {
-                        localStorage.setItem('welcomeDismissed', 'true');
-                        showSlide(index);
-                    });
-                });
-            }
-        }
-        if (index > 0) {
-            const prevButton = document.getElementById(`prev-slide-${index}`);
-            if (prevButton) {
-                prevButton.addEventListener('click', () => {
-                    preserveScroll(() => {
-                        currentSlide = index - 1;
-                        showSlide(currentSlide);
-                        localStorage.setItem('educationState', JSON.stringify({
-                            currentSlide,
-                            slides,
-                            currentQuestion,
-                            questions,
-                            answers,
-                            refreshTimestamp: latestRefreshTimestamp
-                        }));
-                        console.log('Saved educationState in showSlide (prev):', localStorage.getItem('educationState'));
-                    });
-                });
-            }
-        }
-        if (index < slides.length - 1) {
-            const nextButton = document.getElementById(`next-slide-${index}`);
-            if (nextButton) {
-                nextButton.addEventListener('click', () => {
-                    preserveScroll(() => {
-                        currentSlide = index + 1;
-                        showSlide(currentSlide);
-                        localStorage.setItem('educationState', JSON.stringify({
-                            currentSlide,
-                            slides,
-                            currentQuestion,
-                            questions,
-                            answers,
-                            refreshTimestamp: latestRefreshTimestamp
-                        }));
-                        console.log('Saved educationState in showSlide (next):', localStorage.getItem('educationState'));
-                    });
-                });
-            }
-        } else {
-            const nextButton = document.getElementById(`next-slide-${index}`);
-            if (nextButton) {
-                nextButton.addEventListener('click', () => {
-                    preserveScroll(() => startQuiz());
-                });
-            }
-        }
-        currentSlide = index;
+        const prevButton = document.getElementById(`prev-slide-${index}`);
+        if (prevButton) prevButton.addEventListener('click', () => preserveScroll(() => showSlide(index - 1)));
+        const nextButton = document.getElementById(`next-slide-${index}`);
+        if (nextButton) nextButton.addEventListener('click', () => preserveScroll(() => showSlide(index + 1)));
+        const startQuizBtn = document.getElementById('start-quiz-btn');
+        if (startQuizBtn) startQuizBtn.addEventListener('click', () => preserveScroll(() => startQuiz()));
+        const dismissWelcome = document.getElementById('dismiss-welcome');
+        if (dismissWelcome) dismissWelcome.addEventListener('click', () => {
+            localStorage.setItem('welcomeDismissed', 'true');
+            showSlide(index);
+        });
     });
 };
 
-const showQuestion = (index) => {
-    if (index >= questions.length) {
-        showResults(true);
+export const showQuestion = (index) => {
+    if (index < 0 || index >= state.questions.length) {
+        showResults();
         return;
     }
     const educationContent = document.getElementById('education-content');
     if (!educationContent) return;
     preserveScroll(() => {
-        const q = questions[index];
-        console.log('Rendering question:', { question: q.question, options: q.options, correct: q.correct });
-        const cleanOptions = q.options.map(opt => opt.replace(/^[A-D]\)\s*/, '').trim());
-        const isTrueFalse = q.question.toLowerCase().startsWith('true or false') ||
-                            (cleanOptions.length === 2 && cleanOptions.every(opt => ['true', 'false'].includes(opt.toLowerCase())));
-        let displayOptions = cleanOptions;
-        let correctIndex = q.correct;
-        if (isTrueFalse) {
-            displayOptions = ['True', 'False'];
-            correctIndex = cleanOptions[q.correct]?.toLowerCase() === 'true' ? 0 : 1;
-            q.question = q.question.replace(/\s*\(True\/False\)$/i, '').trim();
-            console.log('Identified True/False question, corrected options:', displayOptions, 'correctIndex:', correctIndex, 'question:', q.question);
-        } else {
-            console.log('Non-True/False question, using original options:', cleanOptions);
-        }
-        const optionsWithIndices = displayOptions.map((opt, i) => ({ opt, index: i }));
-        for (let i = optionsWithIndices.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [optionsWithIndices[i], optionsWithIndices[j]] = [optionsWithIndices[j], optionsWithIndices[i]];
-        }
-        const shuffledOptions = optionsWithIndices.map(item => item.opt);
+        const question = state.questions[index];
         let html = '<div class="slide">';
-        html += `<div class="slide-title">Question ${index + 1}</div>`;
-        html += `<div class="slide-section">${q.question}</div><ul>`;
+        html += `<div class="slide-title">Question ${index + 1}/${state.questions.length}</div>`;
+        html += `<div class="slide-section">${question.question}</div>`;
+        const options = [question.option1, question.option2, question.option3, question.option4];
+        const optionsWithIndices = options.map((opt, i) => ({ opt, index: i })).filter(({ opt }) => opt.trim() !== '');
+        const shuffledOptions = optionsWithIndices.sort(() => Math.random() - 0.5).map(({ opt }) => opt);
+        html += '<div class="quiz-options">';
         shuffledOptions.forEach((opt, i) => {
             if (opt !== '') {
-                html += `<li><button id="option-${index}-${i}" class="option-button">${String.fromCharCode(65 + i)}. ${opt}</button></li>`;
+                html += `<button id="option-${index}-${i}" class="quiz-option">${opt}</button>`;
             }
         });
-        html += '</ul>';
-        const progress = Array(questions.length).fill('-').map((_, i) => i === index ? '>' : '-').join('');
+        html += '</div>';
+        const progress = Array(state.questions.length).fill('-').map((_, i) => i < index ? 'x' : i === index ? '>' : '-').join('');
         html += `<p class="progress">[${progress}]</p>`;
         html += '</div>';
         educationContent.innerHTML = html;
@@ -271,39 +202,39 @@ const showQuestion = (index) => {
     });
 };
 
-const selectAnswer = (index, ansIndex) => {
-    answers[index] = ansIndex;
-    currentQuestion++;
+export const selectAnswer = (index, ansIndex) => {
+    state.answers[index] = ansIndex;
+    state.currentQuestion++;
     localStorage.setItem('educationState', JSON.stringify({
-        currentSlide,
-        slides,
-        currentQuestion,
-        questions,
-        answers,
-        refreshTimestamp: latestRefreshTimestamp
+        currentSlide: state.currentSlide,
+        slides: state.slides,
+        currentQuestion: state.currentQuestion,
+        questions: state.questions,
+        answers: state.answers,
+        refreshTimestamp: state.latestRefreshTimestamp
     }));
     console.log('Saved educationState in selectAnswer:', localStorage.getItem('educationState'));
-    showQuestion(currentQuestion);
+    showQuestion(state.currentQuestion);
 };
 
-const calculateScore = (answers) => {
+export const calculateScore = () => {
     let score = 0;
-    questions.forEach((q, i) => {
-        if (answers[i] === q.correct) score += 20;
+    state.questions.forEach((q, i) => {
+        if (state.answers[i] === q.correct) score += 20;
     });
     return score;
 };
 
-const showResults = async (updateQuizCount = true) => {
+export const showResults = async (updateQuizCount = true) => {
     const educationContent = document.getElementById('education-content');
     if (!educationContent) return;
     const startEducationBtn = document.getElementById('start-education');
-    const quizId = questions[0]?.id;
+    const quizId = state.questions[0]?.id;
     preserveScroll(async () => {
         let score = 0;
         let explanations = '';
-        questions.forEach((q, i) => {
-            if (answers[i] === q.correct) score += 20;
+        state.questions.forEach((q, i) => {
+            if (state.answers[i] === q.correct) score += 20;
             else {
                 explanations += `<p>Question ${i + 1}: Incorrect. ${q.explanation}</p>`;
             }
@@ -323,7 +254,7 @@ const showResults = async (updateQuizCount = true) => {
         html += explanations;
         html += '</div>';
         let message = localStorage.getItem('quizSubmissionMessage') || 'Sign in to save your score.';
-        if (questions.length > 0 && !localStorage.getItem('quizSubmitted')) {
+        if (state.questions.length > 0 && !localStorage.getItem('quizSubmitted')) {
             localStorage.removeItem('quizSubmitted');
             localStorage.removeItem('quizSubmissionMessage');
             try {
@@ -365,12 +296,12 @@ const showResults = async (updateQuizCount = true) => {
         educationContent.innerHTML = html;
         if (startEducationBtn) startEducationBtn.style.display = 'none';
         localStorage.setItem('educationState', JSON.stringify({
-            currentSlide,
-            slides,
-            currentQuestion,
-            questions,
-            answers,
-            refreshTimestamp: latestRefreshTimestamp,
+            currentSlide: state.currentSlide,
+            slides: state.slides,
+            currentQuestion: state.currentQuestion,
+            questions: state.questions,
+            answers: state.answers,
+            refreshTimestamp: state.latestRefreshTimestamp,
             quizId,
             pendingQuizSubmission: false
         }));
@@ -380,17 +311,17 @@ const showResults = async (updateQuizCount = true) => {
         if (exitQuizButton) {
             exitQuizButton.addEventListener('click', () => {
                 preserveScroll(() => {
-                    currentQuestion = 0;
-                    questions = [];
-                    answers = [];
+                    state.currentQuestion = 0;
+                    state.questions = [];
+                    state.answers = [];
                     showSlide(0);
                     localStorage.setItem('educationState', JSON.stringify({
                         currentSlide: 0,
-                        slides,
+                        slides: state.slides,
                         currentQuestion: 0,
                         questions: [],
                         answers: [],
-                        refreshTimestamp: latestRefreshTimestamp,
+                        refreshTimestamp: state.latestRefreshTimestamp,
                         quizId
                     }));
                     localStorage.removeItem('quizSubmitted');
@@ -404,28 +335,26 @@ const showResults = async (updateQuizCount = true) => {
     });
 };
 
-const resetToMain = () => {
+export const resetToMain = () => {
     clearUserState();
-    slides = [];
-    questions = [];
-    currentSlide = 0;
-    currentQuestion = 0;
-    answers = [];
+    state.slides = [];
+    state.questions = [];
+    state.currentSlide = 0;
+    state.currentQuestion = 0;
+    state.answers = [];
     const educationContent = document.getElementById('education-content');
     if (educationContent) educationContent.innerHTML = '';
     console.log('Resetting to main, fetching slides');
     showSection('home');
 };
 
-const restartEducation = () => {
+export const restartEducation = () => {
     clearUserState();
-    slides = [];
-    questions = [];
-    currentSlide = 0;
-    currentQuestion = 0;
-    answers = [];
+    state.slides = [];
+    state.questions = [];
+    state.currentSlide = 0;
+    state.currentQuestion = 0;
+    state.answers = [];
     console.log('Restarting education, fetching slides');
     startEducation();
 };
-
-export { startEducation, startQuiz, showSlide, showQuestion, selectAnswer, calculateScore, showResults, resetToMain, restartEducation };

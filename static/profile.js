@@ -1,3 +1,5 @@
+import { preserveScroll, fetchWithRetry, formatDate, showToast, debounce } from './utils.js';
+
 export async function loadProfile(username = null) {
     const profileContent = document.getElementById('profile-content');
     const quizHistoryContent = document.getElementById('quiz-history-content');

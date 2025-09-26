@@ -1,3 +1,6 @@
+import { currentScope } from './state.js';
+import { preserveScroll, fetchWithRetry, formatDate } from './utils.js';
+
 export async function loadLeaderboard() {
     const leaderboardContent = document.getElementById('leaderboard-content');
     const userRankDiv = document.getElementById('user-rank');

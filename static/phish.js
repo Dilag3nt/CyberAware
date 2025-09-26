@@ -1,3 +1,5 @@
+import { preserveScroll, fetchWithRetry, showDismissibleMessage, showToast } from './utils.js';
+
 export async function loadPhishSimulation() {
     const phishContent = document.getElementById('phish-content');
     if (!phishContent) return;

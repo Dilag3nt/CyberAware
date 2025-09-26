@@ -1,12 +1,10 @@
-import { debounce, preserveScroll, fetchWithRetry, formatDate, showToast, showDismissibleMessage } from './utils.js';
-import { startEducation, startQuiz, showSlide, showQuestion, selectAnswer, calculateScore, showResults, resetToMain, restartEducation } from './education.js';
-import { loadProfile, toggleEditProfile, updateProfile, updateTeamStatus, updatePublicStatus, loadQuizHistory } from './profile.js';
+import * as state from './state.js';
+import { debounce, preserveScroll, fetchWithRetry, formatDate, showToast } from './utils.js';
+import { startEducation, startQuiz, showSlide, showQuestion, calculateScore, showResults } from './education.js';
+import { loadProfile } from './profile.js';
 import { loadLeaderboard } from './leaderboard.js';
-import { startGoogleLogin, startMicrosoftLogin, fetchUserTeamStatus, clearUserState, logout } from './auth.js';
+import { startGoogleLogin, startMicrosoftLogin, fetchUserTeamStatus, clearUserState } from './auth.js';
 import { loadPhishSimulation } from './phish.js';
-
-let currentScope = 'weekly';
-let latestRefreshTimestamp = 0;
 
 function typeTitle(element, text) {
     if (!element) return;
@@ -53,14 +51,14 @@ async function showSection(section, username = null) {
     preserveScroll(() => {
         if (educationSection.style.display === 'block' && section !== 'home' && section !== 'results') {
             localStorage.setItem('educationState', JSON.stringify({
-                currentSlide,
-                slides,
-                currentQuestion,
-                questions,
-                answers,
-                refreshTimestamp: latestRefreshTimestamp,
-                quizId: questions[0]?.id,
-                pendingQuizSubmission: questions.length > 0 && currentQuestion >= questions.length
+                currentSlide: state.currentSlide,
+                slides: state.slides,
+                currentQuestion: state.currentQuestion,
+                questions: state.questions,
+                answers: state.answers,
+                refreshTimestamp: state.latestRefreshTimestamp,
+                quizId: state.questions[0]?.id,
+                pendingQuizSubmission: state.questions.length > 0 && state.currentQuestion >= state.questions.length
             }));
             console.log('Saved educationState:', localStorage.getItem('educationState'));
         }
@@ -95,8 +93,8 @@ async function showSection(section, username = null) {
                 if (startEducationBtn) startEducationBtn.style.display = 'none';
                 const savedState = localStorage.getItem('educationState');
                 const preLoginState = localStorage.getItem('preLoginState');
-                console.log('Restoring educationState:', savedState, 'preLoginState:', preLoginState, 'latestRefreshTimestamp:', latestRefreshTimestamp);
-                let state = null;
+                console.log('Restoring educationState:', savedState, 'preLoginState:', preLoginState, 'latestRefreshTimestamp:', state.latestRefreshTimestamp);
+                let tempState = null;
                 let slidesTimestamp = 0;
                 try {
                     const slidesRes = await fetchWithRetry('/api/slides', 3, 2000);
@@ -108,8 +106,8 @@ async function showSection(section, username = null) {
                 }
                 if (preLoginState) {
                     try {
-                        state = JSON.parse(preLoginState);
-                        console.log('Using preLoginState:', state);
+                        tempState = JSON.parse(preLoginState);
+                        console.log('Using preLoginState:', tempState);
                         localStorage.setItem('educationState', preLoginState);
                         localStorage.removeItem('preLoginState');
                     } catch (e) {
@@ -117,24 +115,24 @@ async function showSection(section, username = null) {
                     }
                 } else if (savedState) {
                     try {
-                        state = JSON.parse(savedState);
-                        console.log('Using educationState:', state);
+                        tempState = JSON.parse(savedState);
+                        console.log('Using educationState:', tempState);
                     } catch (e) {
                         console.error('Error parsing educationState:', e);
                     }
                 }
-                if (state && slidesTimestamp) {
-                    const storedDate = new Date(state.refreshTimestamp).toDateString();
+                if (tempState && slidesTimestamp) {
+                    const storedDate = new Date(tempState.refreshTimestamp).toDateString();
                     const currentDate = new Date(slidesTimestamp).toDateString();
                     if (storedDate === currentDate) {
-                        slides = state.slides || [];
-                        currentSlide = state.currentSlide || 0;
-                        questions = state.questions || [];
-                        currentQuestion = state.currentQuestion || 0;
-                        answers = state.answers || [];
-                        if (state.pendingQuizSubmission && questions.length > 0 && !localStorage.getItem('quizSubmitted')) {
+                        state.slides = tempState.slides || [];
+                        state.currentSlide = tempState.currentSlide || 0;
+                        state.questions = tempState.questions || [];
+                        state.currentQuestion = tempState.currentQuestion || 0;
+                        state.answers = tempState.answers || [];
+                        if (tempState.pendingQuizSubmission && state.questions.length > 0 && !localStorage.getItem('quizSubmitted')) {
                             try {
-                                const quizId = state.quizId || questions[0]?.id;
+                                const quizId = tempState.quizId || state.questions[0]?.id;
                                 if (!quizId) throw new Error('No valid quizId found');
                                 console.log('Attempting to submit pending quiz score for quizId:', quizId);
                                 const score = calculateScore();
@@ -148,48 +146,45 @@ async function showSection(section, username = null) {
                                 if (data.saved) {
                                     localStorage.setItem('quizSubmitted', 'true');
                                 }
-                                localStorage.setItem('educationState', JSON.stringify({
-                                    ...state,
-                                    pendingQuizSubmission: false,
-                                    quizId
-                                }));
-                                console.log('Pending quiz submitted, updated educationState:', localStorage.getItem('educationState'));
-                                localStorage.setItem('currentSection', 'results');
-                                showResults(false);
-                                return;
                             } catch (e) {
                                 console.error('Failed to submit pending quiz score:', e);
-                                localStorage.setItem('quizSubmissionMessage', 'Error submitting score. Please try again.');
-                                localStorage.setItem('currentSection', 'results');
-                                showResults(false);
-                                return;
                             }
                         }
-                        if (section === 'results' || (questions.length > 0 && currentQuestion >= questions.length)) {
-                            localStorage.setItem('currentSection', 'results');
+                        if (state.questions.length > 0 && state.currentQuestion >= state.questions.length) {
                             showResults(false);
-                        } else if (questions.length > 0 && currentQuestion < questions.length) {
-                            showQuestion(currentQuestion);
-                        } else if (slides.length > 0) {
-                            showSlide(currentSlide);
+                        } else if (state.questions.length > 0) {
+                            showQuestion(state.currentQuestion);
+                        } else if (state.slides.length > 0) {
+                            showSlide(state.currentSlide);
                         } else {
-                            educationContent.innerHTML = '';
                             startEducation();
                         }
                     } else {
-                        console.log('Clearing educationState due to date mismatch:', storedDate, currentDate);
-                        clearUserState();
-                        educationContent.innerHTML = '';
                         startEducation();
                     }
                 } else {
-                    educationContent.innerHTML = '';
                     startEducation();
                 }
             };
             requestAnimationFrame(updateEducationDOM);
         }
     });
+}
+
+async function fetchQuizCount() {
+    const quizCountSpan = document.getElementById('quiz-count');
+    if (!quizCountSpan) return;
+    try {
+        const res = await fetchWithRetry('/api/update_quiz_count', 3, 2000, {
+            method: 'GET'
+        });
+        const data = await res.json();
+        quizCountSpan.textContent = data.count;
+        console.log('Quiz count fetched:', data.count);
+    } catch (e) {
+        console.error('Failed to fetch quiz count:', e);
+        quizCountSpan.textContent = 'N/A';
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -221,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (toggleWeekly) {
         toggleWeekly.addEventListener('click', () => {
             preserveScroll(() => {
-                currentScope = 'weekly';
+                state.currentScope = 'weekly';
                 toggleWeekly.classList.add('active');
                 if (toggleAlltime) toggleAlltime.classList.remove('active');
                 if (toggleTeam) toggleTeam.classList.remove('active');
@@ -233,7 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (toggleAlltime) {
         toggleAlltime.addEventListener('click', () => {
             preserveScroll(() => {
-                currentScope = 'alltime';
+                state.currentScope = 'alltime';
                 toggleAlltime.classList.add('active');
                 if (toggleWeekly) toggleWeekly.classList.remove('active');
                 if (toggleTeam) toggleTeam.classList.remove('active');
@@ -245,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (toggleTeam) {
         toggleTeam.addEventListener('click', () => {
             preserveScroll(() => {
-                currentScope = 'team';
+                state.currentScope = 'team';
                 toggleTeam.classList.add('active');
                 if (toggleWeekly) toggleWeekly.classList.remove('active');
                 if (toggleAlltime) toggleAlltime.classList.remove('active');
@@ -313,7 +308,7 @@ window.addEventListener('popstate', (event) => {
         const refreshResponse = await fetchWithRetry('/api/latest_refresh', 3, 2000);
         const refreshData = await refreshResponse.json();
         const refreshTime = refreshData.timestamp ? new Date(refreshData.timestamp * 1000).toISOString() : null;
-        latestRefreshTimestamp = (refreshData.timestamp || 0) * 1000;
+        state.latestRefreshTimestamp = (refreshData.timestamp || 0) * 1000;
         requestAnimationFrame(() => {
             const contentRefresh = document.getElementById('content-refresh');
             const currentYear = document.getElementById('current-year');
@@ -324,7 +319,7 @@ window.addEventListener('popstate', (event) => {
             }
             if (currentYear) currentYear.textContent = new Date().getFullYear();
             console.log('Content refresh styles:', contentRefresh ? window.getComputedStyle(contentRefresh).display : 'not found');
-            console.log('Initial latestRefreshTimestamp:', latestRefreshTimestamp);
+            console.log('Initial latestRefreshTimestamp:', state.latestRefreshTimestamp);
         });
         await fetchQuizCount();
     } catch (error) {
@@ -335,7 +330,7 @@ window.addEventListener('popstate', (event) => {
             if (contentRefresh) contentRefresh.innerHTML = 'Unknown';
             if (currentYear) currentYear.textContent = new Date().getFullYear();
             console.log('Content refresh styles:', contentRefresh ? window.getComputedStyle(contentRefresh).display : 'not found');
-            latestRefreshTimestamp = 0;
+            state.latestRefreshTimestamp = 0;
         });
     }
     const path = window.location.pathname.replace(/^\/|\/$/g, '');

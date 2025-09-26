@@ -1,12 +1,15 @@
+import * as state from './state.js';
+import { fetchWithRetry, preserveScroll } from './utils.js';
+
 export function startGoogleLogin() {
     localStorage.setItem('preLoginState', JSON.stringify({
-        currentSlide,
-        slides,
-        currentQuestion,
-        questions,
-        answers,
-        refreshTimestamp: latestRefreshTimestamp,
-        quizId: questions[0]?.id,
+        currentSlide: state.currentSlide,
+        slides: state.slides,
+        currentQuestion: state.currentQuestion,
+        questions: state.questions,
+        answers: state.answers,
+        refreshTimestamp: state.latestRefreshTimestamp,
+        quizId: state.questions[0]?.id,
         pendingQuizSubmission: localStorage.getItem('quizSubmitted') === 'true' ? false : true
     }));
     const section = localStorage.getItem('currentSection') || 'home';
@@ -16,13 +19,13 @@ export function startGoogleLogin() {
 
 export function startMicrosoftLogin() {
     localStorage.setItem('preLoginState', JSON.stringify({
-        currentSlide,
-        slides,
-        currentQuestion,
-        questions,
-        answers,
-        refreshTimestamp: latestRefreshTimestamp,
-        quizId: questions[0]?.id,
+        currentSlide: state.currentSlide,
+        slides: state.slides,
+        currentQuestion: state.currentQuestion,
+        questions: state.questions,
+        answers: state.answers,
+        refreshTimestamp: state.latestRefreshTimestamp,
+        quizId: state.questions[0]?.id,
         pendingQuizSubmission: localStorage.getItem('quizSubmitted') === 'true' ? false : true
     }));
     const section = localStorage.getItem('currentSection') || 'home';

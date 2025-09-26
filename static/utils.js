@@ -1,4 +1,4 @@
-const debounce = (func, wait) => {
+export const debounce = (func, wait) => {
     let timeout;
     return function (...args) {
         clearTimeout(timeout);
@@ -6,13 +6,13 @@ const debounce = (func, wait) => {
     };
 };
 
-const preserveScroll = (callback) => {
+export const preserveScroll = (callback) => {
     const scrollY = window.scrollY;
     callback();
     window.scrollTo(0, scrollY);
 };
 
-const fetchWithRetry = async (url, options = {}, maxRetries = 3) => {
+export const fetchWithRetry = async (url, maxRetries = 3, delay = 2000, options = {}) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             const response = await fetch(url, options);
@@ -20,29 +20,35 @@ const fetchWithRetry = async (url, options = {}, maxRetries = 3) => {
             return response;
         } catch (error) {
             if (attempt === maxRetries) throw error;
-            await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            await new Promise(resolve => setTimeout(resolve, delay * attempt));
         }
     }
 };
 
-const formatDate = (date) => {
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+export const formatDate = (dateStr) => {
+    if (!dateStr) return 'Not Available';
+    const normalizedDateStr = dateStr.replace(/\+00:00Z?$/, 'Z');
+    const dateObj = new Date(normalizedDateStr);
+    if (isNaN(dateObj.getTime())) return 'Unknown';
+    return dateObj.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 };
 
-const showToast = (message, duration = 3000) => {
+export const showToast = (message, type = 'info', duration = 3000) => {
     const toast = document.createElement('div');
-    toast.className = 'toast';
+    toast.className = `toast toast-${type}`;
     toast.textContent = message;
     document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), duration);
+    setTimeout(() => toast.classList.add('show'), 100);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
 };
 
-const showDismissibleMessage = (message) => {
+export const showDismissibleMessage = (container, message) => {
     const msgDiv = document.createElement('div');
     msgDiv.className = 'dismissible-message';
     msgDiv.innerHTML = `${message} <button class="close-btn">×</button>`;
-    document.body.appendChild(msgDiv);
+    (container || document.body).appendChild(msgDiv);
     msgDiv.querySelector('.close-btn').addEventListener('click', () => msgDiv.remove());
 };
-
-export { debounce, preserveScroll, fetchWithRetry, formatDate, showToast, showDismissibleMessage };
