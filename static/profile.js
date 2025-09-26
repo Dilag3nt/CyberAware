@@ -1,4 +1,4 @@
-async function loadProfile(username = null) {
+export async function loadProfile(username = null) {
     const profileContent = document.getElementById('profile-content');
     const quizHistoryContent = document.getElementById('quiz-history-content');
     if (!profileContent) return;
@@ -218,12 +218,12 @@ async function loadProfile(username = null) {
     });
 }
 
-function toggleEditProfile() {
+export function toggleEditProfile() {
     const editForm = document.getElementById('edit-profile-form');
     if (editForm) editForm.style.display = editForm.style.display === 'none' ? 'block' : 'none';
 }
 
-async function updateProfile() {
+export async function updateProfile() {
     const username = document.getElementById('edit-username')?.value;
     const bio = document.getElementById('edit-bio')?.value;
     const join_team = document.getElementById('join-team') ? document.getElementById('join-team').checked : false;
@@ -255,7 +255,7 @@ async function updateProfile() {
     });
 }
 
-async function updateTeamStatus(join_team) {
+export async function updateTeamStatus(join_team) {
     const joinTeamToggle = document.getElementById('join-team');
     if (!joinTeamToggle) return false;
     const originalState = joinTeamToggle.checked;
@@ -289,7 +289,7 @@ async function updateTeamStatus(join_team) {
     }
 }
 
-async function updatePublicStatus(join_public) {
+export async function updatePublicStatus(join_public) {
     const joinPublicToggle = document.getElementById('join-public');
     if (!joinPublicToggle) return false;
     const originalState = joinPublicToggle.checked;
@@ -322,7 +322,7 @@ async function updatePublicStatus(join_public) {
     }
 }
 
-async function loadQuizHistory(page = 1) {
+export async function loadQuizHistory(page = 1) {
     const quizHistoryContent = document.getElementById('quiz-history-content');
     if (!quizHistoryContent) return;
     preserveScroll(async () => {
