@@ -2,7 +2,7 @@
   "name": "dilag3nt",
   "version": "1.0.0",
   "scripts": {
-    "prebuild": "cp static/style.css dist/ || true",
+    "prebuild": "mkdir -p dist && cp static/style.css dist/",
     "build": "parcel build static/core.js --public-url ./dist/"
   },
   "devDependencies": {
