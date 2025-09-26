@@ -71,3 +71,7 @@ def profile_page_username(username):
 @app.route('/leaderboard')
 def leaderboard_page():
     return index()
+
+@app.route('/phish')
+def phish_page():
+    return index()
