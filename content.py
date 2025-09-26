@@ -21,22 +21,21 @@ from social import post_to_x
 
 content_bp = Blueprint('content', __name__)
 
-XAI_API_URL = "https://api.x.ai/v1/chat/completions"
+XAI_API_URL = os.getenv("XAI_API_URL", "https://api.x.ai/v1/chat/completions")
 XAI_API_KEY = os.getenv("XAI_API_KEY")
-RSS_FEEDS = [
-    {"url": "https://feeds.feedburner.com/TheHackersNews", "name": "The Hacker News"},
-    {"url": "https://krebsonsecurity.com/feed/", "name": "Krebs on Security"},
-    {"url": "https://www.darkreading.com/rss.xml", "name": "Dark Reading"},
-    {"url": "https://isc.sans.edu/rssfeed.xml", "name": "SANS Internet Storm Center"},
-    {"url": "https://www.bleepingcomputer.com/feed/", "name": "BleepingComputer"}
-]
 REFRESH_INTERVAL_SECONDS = 14400
 
 scheduler = BackgroundScheduler({'apscheduler.job_defaults.misfire_grace_time': 3600})
 
 def fetch_headlines():
     logging.debug("Entering fetch_headlines")
-    feeds = RSS_FEEDS
+    feeds = [
+        {"url": "https://feeds.feedburner.com/TheHackersNews", "name": "The Hacker News"},
+        {"url": "https://krebsonsecurity.com/feed/", "name": "Krebs on Security"},
+        {"url": "https://www.darkreading.com/rss.xml", "name": "Dark Reading"},
+        {"url": "https://isc.sans.edu/rssfeed.xml", "name": "SANS Internet Storm Center"},
+        {"url": "https://www.bleepingcomputer.com/feed/", "name": "BleepingComputer"}
+    ]
     max_retries = 3
     all_headlines = []
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
@@ -93,6 +92,9 @@ def fetch_headlines():
     return all_headlines
 
 def generate_slide_content(headline):
+    if not XAI_API_KEY:
+        logging.error("XAI_API_KEY is not set, cannot generate slide")
+        return None, None
     prompt = (
         f"Headline: {headline['title']}\nDescription: {headline['description']}\nLink: {headline['link']}\n"
         "Generate a concise cyber awareness slide. Title: 1-2 sentence catchy header. "
@@ -116,6 +118,9 @@ def generate_slide_content(headline):
         return None, None
 
 def generate_quiz_questions(slide_content):
+    if not XAI_API_KEY:
+        logging.error("XAI_API_KEY is not set, cannot generate quiz")
+        return None, None, None, None
     prompt = (
         f"Slide: {slide_content}\nGenerate 1 multiple-choice quiz question. "
         "Format: Question: text\nOptions: JSON array of 4 strings\nCorrect: index (0-3)\nExplanation: brief text."
@@ -147,133 +152,139 @@ def refresh_database():
     if not headlines:
         logging.warning("No headlines fetched, skipping refresh")
         return
-    with get_db_conn() as conn:
-        cur = conn.cursor()
-        new_headlines = []
-        for h in headlines:
-            hash_value = hashlib.sha256((h['title'] + h['description']).encode()).hexdigest()
-            cur.execute("SELECT id FROM headlines WHERE hash = %s", (hash_value,))
-            if not cur.fetchone():
-                cur.execute("""
-                    INSERT INTO headlines (title, description, link, timestamp, source, published_date, hash)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
-                """, (h['title'], h['description'], h['link'], datetime.now(timezone.utc),
-                      h['source'], h['published_date'], hash_value))
-                headline_id = cur.fetchone()[0]
-                new_headlines.append(headline_id)
-        if new_headlines:
-            for headline_id in random.sample(new_headlines, min(5, len(new_headlines))):
-                cur.execute("SELECT title, description, link FROM headlines WHERE id = %s", (headline_id,))
-                headline = cur.fetchone()
-                title, content = generate_slide_content({"title": headline[0], "description": headline[1], "link": headline[2]})
-                if title and content:
-                    cur.execute(
-                        "INSERT INTO slides (title, content, headline_id) VALUES (%s, %s, %s) RETURNING id",
-                        (title, content, headline_id)
-                    )
-                    slide_id = cur.fetchone()[0]
-                    question, options, correct, explanation = generate_quiz_questions(content)
-                    if question:
+    try:
+        with get_db_conn() as conn:
+            cur = conn.cursor()
+            new_headlines = []
+            for h in headlines:
+                hash_value = hashlib.sha256((h['title'] + h['description']).encode()).hexdigest()
+                cur.execute("SELECT id FROM headlines WHERE hash = %s", (hash_value,))
+                if not cur.fetchone():
+                    cur.execute("""
+                        INSERT INTO headlines (title, description, link, timestamp, source, published_date, hash)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+                    """, (h['title'], h['description'], h['link'], datetime.now(timezone.utc),
+                          h['source'], h['published_date'], hash_value))
+                    headline_id = cur.fetchone()[0]
+                    new_headlines.append(headline_id)
+            if new_headlines:
+                for headline_id in random.sample(new_headlines, min(5, len(new_headlines))):
+                    cur.execute("SELECT title, description, link FROM headlines WHERE id = %s", (headline_id,))
+                    headline = cur.fetchone()
+                    title, content = generate_slide_content({"title": headline[0], "description": headline[1], "link": headline[2]})
+                    if title and content:
                         cur.execute(
-                            "INSERT INTO quiz (question, options, correct, explanation, slide_id) VALUES (%s, %s, %s, %s, %s)",
-                            (question, options, correct, explanation, slide_id)
+                            "INSERT INTO slides (title, content, headline_id) VALUES (%s, %s, %s) RETURNING id",
+                            (title, content, headline_id)
                         )
-        conn.commit()
-        logging.info("Database refresh completed")
+                        slide_id = cur.fetchone()[0]
+                        question, options, correct, explanation = generate_quiz_questions(content)
+                        if question:
+                            cur.execute(
+                                "INSERT INTO quiz (question, options, correct, explanation, slide_id) VALUES (%s, %s, %s, %s, %s)",
+                                (question, options, correct, explanation, slide_id)
+                            )
+            conn.commit()
+            logging.info("Database refresh completed")
+    except Exception as e:
+        logging.error(f"Error in refresh_database: {e}")
+        raise
 
 @content_bp.route('/api/latest_refresh', methods=['GET'])
 def latest_refresh():
-    with get_db_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT MAX(timestamp) FROM headlines")
-        latest = cur.fetchone()[0]
-        timestamp = int(latest.timestamp()) if latest else 0
-        return jsonify({"timestamp": timestamp})
+    try:
+        with get_db_conn() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT MAX(timestamp) FROM headlines")
+            latest = cur.fetchone()[0]
+            timestamp = int(latest.timestamp()) if latest else 0
+            return jsonify({"timestamp": timestamp})
+    except Exception as e:
+        logging.error(f"Error in /api/latest_refresh: {e}")
+        return jsonify({"error": "Failed to fetch latest refresh timestamp"}), 500
 
 @content_bp.route('/api/headlines', methods=['GET'])
 def get_headlines():
-    with get_db_conn() as conn:
-        cur = conn.cursor(cursor_factory=DictCursor)
-        cur.execute("""
-            SELECT title, description, link, source, published_date, timestamp
-            FROM headlines ORDER BY timestamp DESC LIMIT 5
-        """)
-        headlines = [{"title": row['title'], "description": row['description'] or "No description",
-                      "link": row['link'] or "#", "source": row['source'],
-                      "published_date": row['published_date'].isoformat().replace('+00:00', 'Z') if row['published_date'] else None,
-                      "timestamp": row['timestamp'].isoformat().replace('+00:00', 'Z') if row['timestamp'] else None}
-                     for row in cur.fetchall()]
-    logging.debug(f"Serving headlines: {headlines}")
-    return jsonify(headlines)
+    try:
+        with get_db_conn() as conn:
+            cur = conn.cursor(cursor_factory=DictCursor)
+            cur.execute("""
+                SELECT title, description, link, source, published_date, timestamp
+                FROM headlines ORDER BY timestamp DESC LIMIT 5
+            """)
+            headlines = [{"title": row['title'], "description": row['description'] or "No description",
+                          "link": row['link'] or "#", "source": row['source'],
+                          "published_date": row['published_date'].isoformat().replace('+00:00', 'Z') if row['published_date'] else None,
+                          "timestamp": row['timestamp'].isoformat().replace('+00:00', 'Z') if row['timestamp'] else None}
+                         for row in cur.fetchall()]
+        logging.debug(f"Serving headlines: {headlines}")
+        return jsonify(headlines)
+    except Exception as e:
+        logging.error(f"Error in /api/headlines: {e}")
+        return jsonify({"error": "Failed to load headlines"}), 500
 
 @content_bp.route('/api/slides', methods=['GET'])
 def get_slides():
-    with get_db_conn() as conn:
-        cur = conn.cursor(cursor_factory=DictCursor)
-        cur.execute("""
-            SELECT slides.title, slides.content, headlines.title as headline_title,
-                   headlines.description as headline_description, headlines.link as headline_link,
-                   headlines.source as headline_source, headlines.published_date as headline_published_date,
-                   headlines.timestamp as headline_timestamp
-            FROM slides
-            LEFT JOIN headlines ON slides.headline_id = headlines.id
-            ORDER BY slides.created_at DESC
-            LIMIT 5
-        """)
-        slides = []
-        for row in cur.fetchall():
-            slide = {
-                "title": row['title'],
-                "content": row['content']
-            }
-            if row['headline_title']:
-                slide.update({
-                    "headline": {
-                        "title": row['headline_title'],
-                        "description": row['headline_description'] or "No description",
-                        "link": row['headline_link'] or "#",
-                        "source": row['headline_source'],
-                        "published_date": row['headline_published_date'].isoformat().replace('+00:00', 'Z') if row['headline_published_date'] else None,
-                        "timestamp": row['headline_timestamp'].isoformat().replace('+00:00', 'Z') if row['headline_timestamp'] else None
-                    }
-                })
-            else:
-                slide["headline"] = None
-            slides.append(slide)
-    logging.debug(f"Serving slides: {slides}")
-    return jsonify(slides)
-
-@content_bp.route('/api/quiz', methods=['GET'])
-def get_quiz():
-    with get_db_conn() as conn:
-        cur = conn.cursor(cursor_factory=DictCursor)
-        cur.execute("""
-            SELECT id, question, options, correct, explanation
-            FROM quiz
-            ORDER BY created_at DESC
-            LIMIT 5
-        """)
-        quiz = [{"id": row['id'], "question": row['question'], "options": json.loads(row['options']), "correct": row['correct'], "explanation": row['explanation']} for row in cur.fetchall()]
-    logging.debug(f"Serving quiz: {quiz}")
-    return jsonify(quiz)
+    try:
+        with get_db_conn() as conn:
+            cur = conn.cursor(cursor_factory=DictCursor)
+            cur.execute("""
+                SELECT slides.title, slides.content, headlines.title as headline_title,
+                       headlines.description as headline_description, headlines.link as headline_link,
+                       headlines.source as headline_source, headlines.published_date as headline_published_date,
+                       headlines.timestamp as headline_timestamp
+                FROM slides
+                LEFT JOIN headlines ON slides.headline_id = headlines.id
+                ORDER BY slides.created_at DESC
+                LIMIT 5
+            """)
+            slides = []
+            for row in cur.fetchall():
+                slide = {
+                    "title": row['title'],
+                    "content": row['content']
+                }
+                if row['headline_title']:
+                    slide.update({
+                        "headline": {
+                            "title": row['headline_title'],
+                            "description": row['headline_description'] or "No description",
+                            "link": row['headline_link'] or "#",
+                            "source": row['headline_source'],
+                            "published_date": row['headline_published_date'].isoformat().replace('+00:00', 'Z') if row['headline_published_date'] else None,
+                            "timestamp": row['headline_timestamp'].isoformat().replace('+00:00', 'Z') if row['headline_timestamp'] else None
+                        }
+                    })
+                else:
+                    slide["headline"] = None
+                slides.append(slide)
+            logging.debug(f"Serving slides: {slides}")
+            return jsonify(slides)
+    except Exception as e:
+        logging.error(f"Error in /api/slides: {e}")
+        return jsonify({"error": "Failed to load slides"}), 500
 
 def start_scheduler():
     logging.info("Starting scheduler for daily refresh and X post")
-    scheduler.remove_all_jobs()
-    scheduler.add_job(
-        func=refresh_database,
-        trigger="interval",
-        seconds=REFRESH_INTERVAL_SECONDS,
-        max_instances=1,
-        id="refresh_database"
-    )
-    scheduler.add_job(
-        func=post_to_x,
-        trigger="cron",
-        hour=11,
-        minute=11,
-        timezone="US/Eastern",
-        max_instances=1,
-        id="post_to_x"
-    )
-    scheduler.start()
+    try:
+        scheduler.remove_all_jobs()
+        scheduler.add_job(
+            func=refresh_database,
+            trigger="interval",
+            seconds=REFRESH_INTERVAL_SECONDS,
+            max_instances=1,
+            id="refresh_database"
+        )
+        scheduler.add_job(
+            func=post_to_x,
+            trigger="cron",
+            hour=11,
+            minute=11,
+            timezone="US/Eastern",
+            max_instances=1,
+            id="post_to_x"
+        )
+        scheduler.start()
+    except Exception as e:
+        logging.error(f"Error starting scheduler: {e}")
+        raise

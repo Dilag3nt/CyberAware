@@ -1,4 +1,4 @@
-import * as state from './state.js';
+import state from './state.js';
 import { preserveScroll, fetchWithRetry, formatDate, showToast } from './utils.js';
 
 export const startEducation = async () => {

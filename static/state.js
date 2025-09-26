@@ -1,7 +1,11 @@
-export let slides = [];
-export let questions = [];
-export let currentSlide = 0;
-export let currentQuestion = 0;
-export let answers = [];
-export let latestRefreshTimestamp = 0;
-export let currentScope = 'weekly';
+const state = {
+    slides: [],
+    questions: [],
+    currentSlide: 0,
+    currentQuestion: 0,
+    answers: [],
+    latestRefreshTimestamp: 0,
+    currentScope: 'weekly'
+};
+
+export default state;

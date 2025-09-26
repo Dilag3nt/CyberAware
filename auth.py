@@ -128,13 +128,20 @@ def user_status():
 def user_team_status():
     user = session.get('user')
     if not user:
+        logging.debug("No user in session for /api/user_team_status")
         return jsonify({"has_team": False})
-    with get_db_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT domain, join_team FROM users WHERE id = %s", (user['id'],))
-        row = cur.fetchone()
-        if row:
-            domain, join_team = row
-            has_team = bool(domain and join_team)
-            return jsonify({"has_team": has_team, "domain": domain})
-    return jsonify({"has_team": False})
+    try:
+        with get_db_conn() as conn:
+            cur = conn.cursor(cursor_factory=DictCursor)
+            cur.execute("SELECT domain, join_team FROM users WHERE id = %s", (user['id'],))
+            row = cur.fetchone()
+            if row:
+                domain, join_team = row['domain'], row['join_team']
+                has_team = bool(domain and join_team)
+                return jsonify({"has_team": has_team, "domain": domain})
+            else:
+                logging.error(f"User not found for id {user['id']} in /api/user_team_status")
+                return jsonify({"has_team": False}), 404
+    except Exception as e:
+        logging.error(f"Error in /api/user_team_status for user_id {user.get('id', 'unknown')}: {e}")
+        return jsonify({"error": "Internal server error"}), 500

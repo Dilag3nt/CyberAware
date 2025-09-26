@@ -1,4 +1,4 @@
-import * as state from './state.js';
+import state from './state.js';
 import { debounce, preserveScroll, fetchWithRetry, formatDate, showToast } from './utils.js';
 import { startEducation, startQuiz, showSlide, showQuestion, calculateScore, showResults } from './education.js';
 import { loadProfile } from './profile.js';
