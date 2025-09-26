@@ -1,10 +1,9 @@
 {
   "name": "dilag3nt",
   "version": "1.0.0",
-  "scripts": {
-    "prebuild": "mkdir -p dist && cp static/style.css dist/",
-    "build": "parcel build static/core.js --public-url ./dist/"
-  },
+"scripts": {
+  "build": "parcel build dist/core.js --public-url ./dist/"
+},
   "devDependencies": {
     "parcel": "^2.7.0"
   }
