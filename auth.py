@@ -1,5 +1,5 @@
 import os
-from flask import Blueprint, redirect, url_for, session, request, make_response, render_template
+from flask import Blueprint, redirect, url_for, session, request, make_response, render_template, jsonify
 from authlib.integrations.flask_client import OAuth
 import secrets
 import logging

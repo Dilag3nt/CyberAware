@@ -18,6 +18,7 @@ from collections import defaultdict
 from apscheduler.schedulers.background import BackgroundScheduler
 from utils import get_db_conn
 from social import post_to_x
+from psycopg2.extras import DictCursor
 
 content_bp = Blueprint('content', __name__)
 
