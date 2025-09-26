@@ -82,10 +82,12 @@ export const startQuiz = async () => {
         }
         animationId = requestAnimationFrame(updateProgress);
         fetchWithRetry('/api/quiz', 3, 2000).then(res => res.json()).then(data => {
-            if (!data || data.length === 0) {
-                throw new Error('Empty quiz response');
-            }
             educationContent.innerHTML = '';
+            if (!data || data.length === 0) {
+                educationContent.innerHTML = '<p>No quiz questions available.</p>';
+                console.error('Quiz fetch error: No questions available');
+                return;
+            }
             state.questions = data;
             state.currentQuestion = 0;
             state.answers = new Array(state.questions.length).fill(null);
@@ -103,9 +105,8 @@ export const startQuiz = async () => {
             }));
             console.log('Saved educationState in startQuiz:', localStorage.getItem('educationState'));
         }).catch(e => {
-            educationContent.innerHTML = '<p>Error loading quiz: ' + e.message + '. Retrying in 5 seconds...</p>';
+            educationContent.innerHTML = '<p>Error loading quiz: ' + e.message + '.</p>';
             console.error('Quiz fetch error:', e);
-            setTimeout(() => startQuiz(), 5000);
         });
     });
 };

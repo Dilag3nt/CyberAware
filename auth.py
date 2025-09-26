@@ -50,23 +50,27 @@ def login(provider):
         return microsoft.authorize_redirect(url_for('auth.auth_callback', provider='microsoft', _external=True), nonce=nonce)
     return redirect(url_for('index'))
 
-@auth_bp.route('/auth/<provider>')
+@auth_bp.route('/auth/<provider>/callback')
 def auth_callback(provider):
     try:
         if provider == 'google':
             token = google.authorize_access_token()
             nonce = session.pop('google_nonce', None)
+            if not nonce:
+                logging.error("No nonce found in session for Google OAuth")
+                return redirect(url_for('index'))
             user_info = google.parse_id_token(token, nonce=nonce)
             social_id = user_info['sub']
-            name = user_info.get('name', '')
             email = user_info.get('email', '')
             logging.debug(f"Google user info: {user_info}")
         elif provider == 'microsoft':
             token = microsoft.authorize_access_token()
             nonce = session.pop('microsoft_nonce', None)
+            if not nonce:
+                logging.error("No nonce found in session for Microsoft OAuth")
+                return redirect(url_for('index'))
             user_info = microsoft.parse_id_token(token, nonce=nonce)
             social_id = user_info['oid']
-            name = user_info.get('name', '')
             email = user_info.get('email') or user_info.get('upn') or user_info.get('preferred_username', '')
             logging.debug(f"Microsoft user info: {user_info}")
         else:

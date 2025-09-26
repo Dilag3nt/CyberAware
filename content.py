@@ -98,21 +98,23 @@ def generate_slide_content(headline):
         return None, None
     prompt = (
         f"Headline: {headline['title']}\nDescription: {headline['description']}\nLink: {headline['link']}\n"
-        "Generate a concise cyber awareness slide. Title: 1-2 sentence catchy header. "
-        "Content: 3-4 bullet points with prevention tips. Keep it simple, actionable, under 200 words."
+        "Generate a concise cyber awareness slide. Format strictly as follows:\n"
+        "**Title:** [1-2 sentence catchy header]\n"
+        "Threat: [brief threat description]\n"
+        "Safety tips: [3-4 bullet points with prevention tips, keep simple and actionable, under 200 words total]"
     )
+    headers = {"Authorization": f"Bearer {XAI_API_KEY}", "Content-Type": "application/json"}
+    data = {"model": "grok-3-mini", "messages": [{"role": "user", "content": prompt}]}
     try:
-        response = requests.post(
-            XAI_API_URL,
-            headers={"Authorization": f"Bearer {XAI_API_KEY}", "Content-Type": "application/json"},
-            json={"model": "grok-beta", "messages": [{"role": "user", "content": prompt}]}
-        )
+        logging.debug(f"Sending xAI API request: URL={XAI_API_URL}, Headers={headers}, Data={data}")
+        response = requests.post(XAI_API_URL, headers=headers, json=data, timeout=120)
+        logging.debug(f"xAI API response: Status={response.status_code}, Body={response.text}")
         response.raise_for_status()
-        generated = response.json()["choices"][0]["message"]["content"]
-        title_match = re.search(r'Title:\s*(.*)', generated)
-        content_match = re.search(r'Content:\s*(.*)', generated, re.DOTALL)
+        generated = response.json()["choices"][0]["message"]["content"].strip()
+        title_match = re.search(r'\*\*Title:\*\* ([^\n]*?)(?=\s*$|\s*\n)', generated)
+        content_match = re.search(r'Threat:.*?(?=Safety tips:)|Safety tips:.*', generated, re.DOTALL)
         title = title_match.group(1).strip() if title_match else "Cyber Tip"
-        content = content_match.group(1).strip() if content_match else "No content generated."
+        content = content_match.group(0).strip() if content_match else "No content generated."
         return title, content
     except Exception as e:
         logging.error(f"Error generating slide for {headline['title']}: {e}")
@@ -123,25 +125,29 @@ def generate_quiz_questions(slide_content):
         logging.error("XAI_API_KEY is not set, cannot generate quiz")
         return None, None, None, None
     prompt = (
-        f"Slide: {slide_content}\nGenerate 1 multiple-choice quiz question. "
-        "Format: Question: text\nOptions: JSON array of 4 strings\nCorrect: index (0-3)\nExplanation: brief text."
+        f"Slide: {slide_content}\n"
+        "Generate 1 multiple-choice quiz question. Format strictly as JSON:\n"
+        "{\"question\": str, \"options\": [str, str, str, str], \"correct\": int, \"explanation\": str}\n"
+        "Ensure exactly 4 options, no prefixes (e.g., no 'A. ', 'B. '). 'correct' must be a valid index (0-3)."
     )
+    headers = {"Authorization": f"Bearer {XAI_API_KEY}", "Content-Type": "application/json"}
+    data = {"model": "grok-3-mini", "messages": [{"role": "user", "content": prompt}]}
     try:
-        response = requests.post(
-            XAI_API_URL,
-            headers={"Authorization": f"Bearer {XAI_API_KEY}", "Content-Type": "application/json"},
-            json={"model": "grok-beta", "messages": [{"role": "user", "content": prompt}]}
-        )
+        logging.debug(f"Sending xAI API request: URL={XAI_API_URL}, Headers={headers}, Data={data}")
+        response = requests.post(XAI_API_URL, headers=headers, json=data, timeout=120)
+        logging.debug(f"xAI API response: Status={response.status_code}, Body={response.text}")
         response.raise_for_status()
-        generated = response.json()["choices"][0]["message"]["content"]
-        question_match = re.search(r'Question:\s*(.*)', generated)
-        options_match = re.search(r'Options:\s*(\[.*?\])', generated, re.DOTALL)
-        correct_match = re.search(r'Correct:\s*(\d)', generated)
-        explanation_match = re.search(r'Explanation:\s*(.*)', generated, re.DOTALL)
-        question = question_match.group(1).strip() if question_match else "Default question?"
-        options = json.loads(options_match.group(1)) if options_match else ["A", "B", "C", "D"]
-        correct = int(correct_match.group(1)) if correct_match else 0
-        explanation = explanation_match.group(1).strip() if explanation_match else "No explanation."
+        generated = response.json()["choices"][0]["message"]["content"].strip()
+        if generated.startswith('```json'):
+            generated = generated[7:-3].strip()
+        quiz_data = json.loads(generated)
+        question = quiz_data["question"]
+        options = quiz_data["options"]
+        correct = quiz_data["correct"]
+        explanation = quiz_data["explanation"]
+        if not (isinstance(options, list) and len(options) == 4 and isinstance(correct, int) and 0 <= correct <= 3):
+            logging.error(f"Invalid quiz format: {generated}")
+            return None, None, None, None
         return question, json.dumps(options), correct, explanation
     except Exception as e:
         logging.error(f"Error generating quiz: {e}")
