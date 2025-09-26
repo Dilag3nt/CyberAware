@@ -12,10 +12,9 @@ import urllib.error
 import feedparser
 import re
 import json
-import datetime
+from datetime import datetime, timezone, timedelta
 import bleach
 from collections import defaultdict
-from datetime import timezone, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from utils import get_db_conn
 from social import post_to_x
@@ -70,7 +69,7 @@ def fetch_headlines():
                         description = match.group(1) if match else desc[:225]
                         link = entry.get("link", "")
                         published_date = entry.get("published_parsed")
-                        published_date = datetime.datetime(*published_date[:6], tzinfo=timezone.utc) if published_date else None
+                        published_date = datetime(*published_date[:6], tzinfo=timezone.utc) if published_date else None
                         contains_keyword = any(kw.lower() in title.lower() or kw.lower() in description.lower() for kw in keywords)
                         if contains_keyword:
                             all_headlines.append({
